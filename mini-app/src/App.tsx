@@ -6,6 +6,8 @@ import { motion } from 'framer-motion';
 const App: React.FC = () => {
   const { user, loading, error, refreshBalance } = useAppContext();
 
+  const safeBalance = Number.isFinite(Number(user?.balance)) ? Number(user?.balance) : 0;
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-surfsol-darker">
@@ -79,7 +81,7 @@ const App: React.FC = () => {
             <p className="text-blue-100 text-sm font-medium mb-1 opacity-80 uppercase tracking-widest">Main Wallet Balance</p>
             <div className="flex items-baseline space-x-2">
               <h2 className="text-4xl font-black tracking-tighter text-white drop-shadow-md">
-                {user?.balance.toFixed(4)}
+                {safeBalance.toFixed(4)}
               </h2>
               <span className="text-xl font-bold text-white/80">SOL</span>
             </div>

@@ -1,6 +1,8 @@
 import hmac
 import hashlib
 import json
+import os
+import socket
 import time
 from urllib.parse import parse_qs
 from fastapi import FastAPI, Header, HTTPException, Depends
@@ -18,10 +20,18 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # In production, replace with your actual frontend URL
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+async def root():
+    return {"status": "ok", "service": "surfsol-api"}
+
+@app.get("/health")
+async def health():
+    return {"ok": True}
 
 def verify_telegram_data(init_data: str) -> dict:
     """Verifies the data received from the Telegram Mini App."""
@@ -86,4 +96,24 @@ async def get_user_info(authorization: Optional[str] = Header(None)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+    def pick_port(requested: int) -> int:
+        if requested <= 0:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(("0.0.0.0", 0))
+                return int(s.getsockname()[1])
+
+        for p in range(requested, requested + 100):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                try:
+                    s.bind(("0.0.0.0", p))
+                    return int(p)
+                except OSError:
+                    continue
+
+        raise RuntimeError("No available port found")
+
+    requested_port = int(os.getenv("API_PORT", "8000"))
+    port = pick_port(requested_port)
+    print(f"SurfSol API listening on port {port}")
+    uvicorn.run(app, host="0.0.0.0", port=port)
