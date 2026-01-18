@@ -269,17 +269,23 @@ const AdvancedPlinko: React.FC<Props> = ({ demoBalance, setDemoBalance, onLoss }
           {Array.from({ length: rows }).map((_, rowIdx) => {
             const pegsInRow = rowIdx + 3;
             return (
-              <div key={rowIdx} className="flex justify-center w-full" style={{ gap: `${Math.max(4, 20 - rows)}px` }}>
-                {Array.from({ length: pegsInRow }).map((_, pegIdx) => (
-                  <div
-                    key={pegIdx}
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{ 
-                      background: `radial-gradient(circle, ${colors.textMuted}80, ${colors.textMuted}40)`,
-                      boxShadow: `0 0 4px ${colors.textMuted}30`,
-                    }}
-                  />
-                ))}
+              <div key={rowIdx} className="relative w-full" style={{ height: '10px' }}>
+                {Array.from({ length: pegsInRow }).map((_, pegIdx) => {
+                  const leftPct = pegsInRow <= 1 ? 50 : (pegIdx / (pegsInRow - 1)) * 100;
+                  return (
+                    <div
+                      key={pegIdx}
+                      className="absolute w-1.5 h-1.5 rounded-full"
+                      style={{
+                        left: `${leftPct}%`,
+                        top: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        background: `radial-gradient(circle, ${colors.textMuted}80, ${colors.textMuted}40)`,
+                        boxShadow: `0 0 4px ${colors.textMuted}30`,
+                      }}
+                    />
+                  );
+                })}
               </div>
             );
           })}
@@ -288,18 +294,11 @@ const AdvancedPlinko: React.FC<Props> = ({ demoBalance, setDemoBalance, onLoss }
         {/* Balls */}
         <AnimatePresence>
           {balls.map((ball) => {
-            // Calculate position based on path - ball starts at CENTER
             const currentStep = ball.step;
             const pathValue = ball.path[currentStep] ?? 0;
-            // Ball starts at 50% (center), each step moves it left or right
-            // pathValue is how many times it went right (0 to rows)
-            // Center offset: at step N, center would be N/2 rights
-            // So offset from center = pathValue - currentStep/2
-            const centerOffset = pathValue - (currentStep / 2);
-            // Each offset unit = percentage of board width
-            const offsetPercent = (centerOffset / (rows / 2)) * 40; // Max 40% offset from center
-            const xPercent = 50 + offsetPercent;
-            const yPercent = (currentStep / rows) * 75 + 5; // 5% to 80%
+            const denom = Math.max(1, currentStep + 1);
+            const xPercent = ((pathValue + 0.5) / denom) * 100;
+            const yPercent = (currentStep / rows) * 75 + 5;
 
             return (
               <motion.div
@@ -324,7 +323,7 @@ const AdvancedPlinko: React.FC<Props> = ({ demoBalance, setDemoBalance, onLoss }
         </AnimatePresence>
 
         {/* Multiplier Slots */}
-        <div className="absolute bottom-0 left-0 right-0 flex px-1 pb-2">
+        <div className="absolute bottom-0 left-0 right-0 flex px-2 pb-2">
           {multipliers.map((mult, i) => (
             <motion.div
               key={i}

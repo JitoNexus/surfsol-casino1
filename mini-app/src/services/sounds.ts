@@ -1,4 +1,4 @@
-import { Howl } from 'howler';
+import { Howl, Howler } from 'howler';
 
 // Sound effects for Plinko
 const sounds = {
@@ -13,11 +13,11 @@ const sounds = {
   }),
   win: new Howl({
     src: ['https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3'],
-    volume: 0.4,
+    volume: 0.75,
   }),
   bigWin: new Howl({
     src: ['https://assets.mixkit.co/active_storage/sfx/2020/2020-preview.mp3'],
-    volume: 0.5,
+    volume: 0.85,
   }),
   lose: new Howl({
     src: ['https://assets.mixkit.co/active_storage/sfx/2656/2656-preview.mp3'],
@@ -31,14 +31,31 @@ const sounds = {
 
 // Theme-specific background music
 const themeMusicUrls: Record<string, string> = {
+  dark: 'https://assets.mixkit.co/music/preview/mixkit-deep-urban-623.mp3',
+  surf: 'https://assets.mixkit.co/music/preview/mixkit-driving-ambition-32.mp3',
   cyber: 'https://assets.mixkit.co/music/preview/mixkit-tech-house-vibes-130.mp3',
-  ocean: 'https://assets.mixkit.co/music/preview/mixkit-deep-urban-623.mp3',
-  sunset: 'https://assets.mixkit.co/music/preview/mixkit-hip-hop-02-738.mp3',
-  neon: 'https://assets.mixkit.co/music/preview/mixkit-driving-ambition-32.mp3',
+  gamble: 'https://assets.mixkit.co/music/preview/mixkit-hip-hop-02-738.mp3',
 };
 
 let currentBgMusic: Howl | null = null;
 let currentTheme: string = '';
+
+let audioUnlocked = false;
+
+export const unlockAudio = async (): Promise<boolean> => {
+  try {
+    if (audioUnlocked) return true;
+    const ctx = Howler.ctx;
+    if (ctx && ctx.state === 'suspended') {
+      await ctx.resume();
+    }
+    audioUnlocked = true;
+    return true;
+  } catch (e) {
+    console.warn('Audio unlock failed:', e);
+    return false;
+  }
+};
 
 export const playSound = (name: keyof typeof sounds) => {
   try {
@@ -70,6 +87,8 @@ export const startThemeMusic = (theme: string, volume: number = 0.15) => {
     return;
   }
 
+  void unlockAudio();
+
   // Stop current music
   if (currentBgMusic) {
     currentBgMusic.fade(currentBgMusic.volume(), 0, 500);
@@ -90,7 +109,11 @@ export const startThemeMusic = (theme: string, volume: number = 0.15) => {
     html5: true,
   });
 
-  currentBgMusic.play();
+  try {
+    currentBgMusic.play();
+  } catch (e) {
+    console.warn('Music play failed:', e);
+  }
   currentBgMusic.fade(0, volume, 1000);
 };
 

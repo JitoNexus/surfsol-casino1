@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeCanvas } from 'qrcode.react';
 import AdvancedPlinko from './games/AdvancedPlinko';
 import { generateRealWallet, restoreWallet, getWalletBalance, isValidSolanaAddress, sendSOL, HOUSE_WALLET } from './services/solanaWallet';
-import { startThemeMusic, stopThemeMusic } from './services/sounds';
+import { startThemeMusic, stopThemeMusic, unlockAudio } from './services/sounds';
 
 interface WalletData {
   publicKey: string;
@@ -232,7 +232,10 @@ const App: React.FC = () => {
             {/* Music Toggle */}
             <motion.button
               whileTap={{ scale: 0.95 }}
-              onClick={() => setMusicEnabled(!musicEnabled)}
+              onClick={async () => {
+                await unlockAudio();
+                setMusicEnabled(!musicEnabled);
+              }}
               className="p-1.5 rounded-lg border"
               style={{ 
                 borderColor: musicEnabled ? colors.accent : `${colors.text}20`, 
