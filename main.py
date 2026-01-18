@@ -234,7 +234,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [
             InlineKeyboardButton(MESSAGES[lang]['play_btn'], web_app=WebAppInfo(url=MINI_APP_URL)),
-            InlineKeyboardButton(MESSAGES[lang]['wallet_btn'], callback_data='wallet')
         ],
         [
             InlineKeyboardButton(MESSAGES[lang]['about_btn'], callback_data='about'),
@@ -454,7 +453,6 @@ if __name__ == '__main__':
     application = ApplicationBuilder().token(BOT_TOKEN).build()
     
     application.add_handler(CommandHandler('start', start))
-    application.add_handler(CommandHandler('wallet', wallet_handler))
     application.add_handler(CommandHandler('about', about_handler))
     application.add_handler(CommandHandler('responsible', responsible_handler))
     application.add_handler(CommandHandler('how', how_to_handler))

@@ -1,35 +1,141 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useAppContext } from './context/AppContext';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useTheme, ThemeName, themes } from './context/ThemeContext';
-import { Wallet, Copy, QrCode, Settings, Volume2, VolumeX, Palette, RotateCcw } from 'lucide-react';
+import { Wallet, Copy, QrCode, Settings, Volume2, VolumeX, Palette, RotateCcw, Trophy, ExternalLink, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeCanvas } from 'qrcode.react';
 import AdvancedPlinko from './games/AdvancedPlinko';
+import { generateRealWallet, restoreWallet, getWalletBalance, isValidSolanaAddress, sendSOL, HOUSE_WALLET } from './services/solanaWallet';
+
+interface WalletData {
+  publicKey: string;
+  secretKey: string;
+}
+
+interface LeaderboardEntry {
+  rank: number;
+  username: string;
+  balance: number;
+}
 
 const App: React.FC = () => {
-  const { user, loading, localWallet, refreshBalance, generateLocalWallet } = useAppContext();
   const { theme, colors, setTheme } = useTheme();
 
-  const [activeTab, setActiveTab] = useState<'plinko' | 'wallet' | 'settings'>('plinko');
+  const [activeTab, setActiveTab] = useState<'plinko' | 'wallet' | 'leaderboard' | 'settings'>('plinko');
+  const [wallet, setWallet] = useState<WalletData | null>(null);
+  const [realBalance, setRealBalance] = useState<number>(0);
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const [demoBalance, setDemoBalance] = useState<number>(() => {
     const v = localStorage.getItem('surfsol_demo_balance');
-    const n = v ? Number(v) : 5;
-    return Number.isFinite(n) ? n : 5;
+    const n = v ? Number(v) : 1;
+    return Number.isFinite(n) ? n : 1;
   });
-  const [musicEnabled, setMusicEnabled] = useState(() => localStorage.getItem('surfsol_music') === '1');
+  const [isRealMode, setIsRealMode] = useState(false);
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showPrivateKey, setShowPrivateKey] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [withdrawAddress, setWithdrawAddress] = useState('');
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [withdrawError, setWithdrawError] = useState('');
+
+  // Load or create wallet on mount
+  useEffect(() => {
+    const savedKey = localStorage.getItem('surfsol_wallet_secret');
+    if (savedKey) {
+      const restored = restoreWallet(savedKey);
+      if (restored) {
+        setWallet(restored);
+      }
+    }
+  }, []);
+
+  // Save wallet when created
+  const createWallet = useCallback(() => {
+    const newWallet = generateRealWallet();
+    setWallet(newWallet);
+    localStorage.setItem('surfsol_wallet_secret', newWallet.secretKey);
+    setShowPrivateKey(true);
+  }, []);
+
+  // Fetch real balance
+  const refreshRealBalance = useCallback(async () => {
+    if (!wallet?.publicKey) return;
+    setIsLoadingBalance(true);
+    try {
+      const bal = await getWalletBalance(wallet.publicKey);
+      setRealBalance(bal);
+    } catch (e) {
+      console.error('Failed to fetch balance:', e);
+    } finally {
+      setIsLoadingBalance(false);
+    }
+  }, [wallet?.publicKey]);
+
+  useEffect(() => {
+    if (wallet?.publicKey) {
+      refreshRealBalance();
+      // Refresh every 30 seconds
+      const interval = setInterval(refreshRealBalance, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [wallet?.publicKey, refreshRealBalance]);
 
   useEffect(() => {
     localStorage.setItem('surfsol_demo_balance', String(demoBalance));
   }, [demoBalance]);
 
+  // Mock leaderboard data (would come from API)
   useEffect(() => {
-    localStorage.setItem('surfsol_music', musicEnabled ? '1' : '0');
-  }, [musicEnabled]);
+    setLeaderboard([
+      { rank: 1, username: 'Cry***er', balance: 127.5 },
+      { rank: 2, username: 'Sol***ng', balance: 89.2 },
+      { rank: 3, username: 'Pli***ro', balance: 54.8 },
+      { rank: 4, username: 'Wav***er', balance: 32.1 },
+      { rank: 5, username: 'Luc***77', balance: 28.9 },
+      { rank: 6, username: 'Bet***ax', balance: 21.4 },
+      { rank: 7, username: 'Win***99', balance: 18.7 },
+      { rank: 8, username: 'Gam***er', balance: 15.2 },
+      { rank: 9, username: 'Ace***01', balance: 12.8 },
+      { rank: 10, username: 'Big***in', balance: 10.5 },
+    ]);
+  }, []);
 
-  const walletAddress = user?.public_key || localWallet || '';
-  const safeBalance = Number.isFinite(Number(user?.balance)) ? Number(user?.balance) : 0;
+  const handleWithdraw = async () => {
+    if (!wallet?.secretKey || !withdrawAddress || !withdrawAmount) return;
+    
+    const amount = parseFloat(withdrawAmount);
+    if (isNaN(amount) || amount <= 0 || amount > realBalance) {
+      setWithdrawError('Invalid amount');
+      return;
+    }
+    
+    if (!isValidSolanaAddress(withdrawAddress)) {
+      setWithdrawError('Invalid Solana address');
+      return;
+    }
+
+    setWithdrawing(true);
+    setWithdrawError('');
+    
+    try {
+      const result = await sendSOL(wallet.secretKey, withdrawAddress, amount);
+      if (result.success) {
+        setWithdrawAddress('');
+        setWithdrawAmount('');
+        await refreshRealBalance();
+      } else {
+        setWithdrawError(result.error || 'Withdrawal failed');
+      }
+    } catch (e: any) {
+      setWithdrawError(e.message || 'Withdrawal failed');
+    } finally {
+      setWithdrawing(false);
+    }
+  };
+
+  const currentBalance = isRealMode ? realBalance : demoBalance;
+  const walletAddress = wallet?.publicKey || '';
 
   const shortAddress = useMemo(() => {
     if (!walletAddress) return '';
@@ -54,125 +160,62 @@ const App: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div 
-        className="flex flex-col items-center justify-center min-h-screen"
-        style={{ background: colors.background }}
-      >
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-          className="w-16 h-16 rounded-full border-4 mb-4"
-          style={{ borderColor: colors.primary, borderTopColor: colors.accent }}
-        />
-        <motion.p
-          animate={{ opacity: [0.5, 1, 0.5] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
-          className="text-lg font-bold"
-          style={{ color: colors.textMuted }}
-        >
-          Loading SurfSol...
-        </motion.p>
-      </div>
-    );
-  }
-
   return (
     <div 
       className="min-h-screen relative overflow-hidden"
       style={{ background: colors.background, color: colors.text }}
     >
-      {/* Animated Background */}
+      {/* Background gradient */}
       <div 
-        className="absolute inset-0 pointer-events-none opacity-60"
+        className="absolute inset-0 pointer-events-none opacity-50"
         style={{
-          background: `radial-gradient(ellipse at 50% 0%, ${colors.primary}30, transparent 50%),
-                       radial-gradient(ellipse at 80% 80%, ${colors.secondary}20, transparent 40%),
-                       radial-gradient(ellipse at 20% 60%, ${colors.accent}15, transparent 40%)`,
+          background: `radial-gradient(ellipse at 50% 0%, ${colors.primary}25, transparent 50%),
+                       radial-gradient(ellipse at 80% 80%, ${colors.secondary}15, transparent 40%)`,
         }}
       />
-      
-      {/* Floating Particles */}
-      {[...Array(6)].map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute w-2 h-2 rounded-full pointer-events-none"
-          style={{ background: colors.accent, opacity: 0.3 }}
-          animate={{
-            x: [0, Math.random() * 100 - 50, 0],
-            y: [0, Math.random() * -200, 0],
-            opacity: [0.1, 0.4, 0.1],
-          }}
-          transition={{
-            duration: 5 + Math.random() * 5,
-            repeat: Infinity,
-            delay: i * 0.5,
-          }}
-          initial={{
-            left: `${10 + i * 15}%`,
-            top: `${60 + Math.random() * 30}%`,
-          }}
-        />
-      ))}
 
       {/* Header */}
       <header 
-        className="sticky top-0 z-50 backdrop-blur-xl border-b px-4 py-3"
-        style={{ 
-          background: `${colors.surface}90`,
-          borderColor: `${colors.text}10`,
-        }}
+        className="sticky top-0 z-50 backdrop-blur-xl border-b px-3 py-2"
+        style={{ background: `${colors.surface}95`, borderColor: `${colors.text}10` }}
       >
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <motion.div
-              whileHover={{ scale: 1.1, rotate: 10 }}
-              className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg"
-              style={{ 
-                background: `linear-gradient(135deg, ${colors.primary}, ${colors.secondary})`,
-                boxShadow: `0 4px 20px ${colors.glow}`,
-              }}
+          <div className="flex items-center gap-2">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: `linear-gradient(135deg, ${colors.primary}, ${colors.secondary})` }}
             >
-              <span className="text-xl">🎰</span>
-            </motion.div>
+              <span className="text-base">🌊</span>
+            </div>
             <div>
-              <h1 className="text-lg font-black tracking-tight leading-none">SURFSOL</h1>
-              <p 
-                className="text-[10px] uppercase tracking-[0.2em] font-bold"
-                style={{ color: colors.accent }}
-              >
-                Plinko
+              <h1 className="text-sm font-black tracking-tight leading-none">SURFSOL</h1>
+              <p className="text-[9px] uppercase tracking-wider font-bold" style={{ color: colors.accent }}>
+                {isRealMode ? 'Real Mode' : 'Demo Mode'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            {/* Mode Toggle */}
             <motion.button
               whileTap={{ scale: 0.95 }}
-              onClick={() => setShowThemePicker(!showThemePicker)}
-              className="p-2 rounded-full border backdrop-blur-sm"
+              onClick={() => setIsRealMode(!isRealMode)}
+              className="px-2 py-1 rounded-lg border text-[10px] font-bold uppercase"
               style={{ 
-                borderColor: `${colors.text}20`,
-                background: showThemePicker ? `${colors.accent}20` : `${colors.text}05`,
+                borderColor: isRealMode ? '#22c55e' : colors.accent,
+                background: isRealMode ? 'rgba(34, 197, 94, 0.2)' : `${colors.accent}20`,
+                color: isRealMode ? '#22c55e' : colors.accent,
               }}
             >
-              <Palette className="w-5 h-5" style={{ color: showThemePicker ? colors.accent : colors.textMuted }} />
+              {isRealMode ? 'Real' : 'Demo'}
             </motion.button>
             <motion.button
               whileTap={{ scale: 0.95 }}
-              onClick={() => setMusicEnabled(!musicEnabled)}
-              className="p-2 rounded-full border backdrop-blur-sm"
-              style={{ 
-                borderColor: `${colors.text}20`,
-                background: `${colors.text}05`,
-              }}
+              onClick={() => setShowThemePicker(!showThemePicker)}
+              className="p-1.5 rounded-lg border"
+              style={{ borderColor: `${colors.text}20`, background: `${colors.text}05` }}
             >
-              {musicEnabled ? (
-                <Volume2 className="w-5 h-5" style={{ color: colors.accent }} />
-              ) : (
-                <VolumeX className="w-5 h-5" style={{ color: colors.textMuted }} />
-              )}
+              <Palette className="w-4 h-4" style={{ color: colors.textMuted }} />
             </motion.button>
           </div>
         </div>
@@ -184,17 +227,14 @@ const App: React.FC = () => {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="mt-3 flex gap-2 overflow-hidden"
+              className="mt-2 flex gap-1.5 overflow-hidden"
             >
               {(Object.keys(themes) as ThemeName[]).map((t) => (
                 <motion.button
                   key={t}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => {
-                    setTheme(t);
-                    setShowThemePicker(false);
-                  }}
-                  className="flex-1 py-2 px-3 rounded-xl border font-bold text-xs uppercase tracking-wider transition-all"
+                  onClick={() => { setTheme(t); setShowThemePicker(false); }}
+                  className="flex-1 py-1.5 rounded-lg border font-bold text-[10px] uppercase"
                   style={{
                     borderColor: theme === t ? colors.accent : `${colors.text}20`,
                     background: theme === t ? `${colors.accent}20` : `${colors.text}05`,
@@ -210,18 +250,21 @@ const App: React.FC = () => {
       </header>
 
       {/* Main Content */}
-      <main className="pb-24">
+      <main className="pb-20">
         <AnimatePresence mode="wait">
           {activeTab === 'plinko' && (
             <motion.div
               key="plinko"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
             >
               <AdvancedPlinko
-                demoBalance={demoBalance}
-                setDemoBalance={setDemoBalance}
+                demoBalance={isRealMode ? realBalance : demoBalance}
+                setDemoBalance={isRealMode ? 
+                  () => {} : // Real mode - don't allow demo balance changes
+                  setDemoBalance
+                }
               />
             </motion.div>
           )}
@@ -229,116 +272,220 @@ const App: React.FC = () => {
           {activeTab === 'wallet' && (
             <motion.div
               key="wallet"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              className="p-4 space-y-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-3 space-y-3"
             >
-              {/* Wallet Card */}
+              {/* Real Wallet Card */}
               <div 
-                className="rounded-3xl p-5 border"
-                style={{ 
-                  background: `linear-gradient(135deg, ${colors.surface}, ${colors.background})`,
-                  borderColor: `${colors.text}10`,
-                }}
+                className="rounded-2xl p-4 border"
+                style={{ background: `${colors.surface}80`, borderColor: `${colors.text}10` }}
               >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="text-sm font-black uppercase tracking-widest" style={{ color: colors.textMuted }}>
-                    Your Wallet
-                  </div>
-                  <div className="text-xs font-bold px-2 py-1 rounded-lg" style={{ background: `${colors.accent}20`, color: colors.accent }}>
-                    Solana
-                  </div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-black uppercase tracking-widest" style={{ color: colors.textMuted }}>
+                    Solana Wallet
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: `${colors.accent}20`, color: colors.accent }}>
+                    Mainnet
+                  </span>
                 </div>
 
-                {walletAddress ? (
+                {wallet ? (
                   <>
-                    <div 
-                      className="rounded-2xl p-4 border mb-4"
-                      style={{ background: `${colors.background}80`, borderColor: `${colors.text}10` }}
-                    >
-                      <div className="text-xs mb-2" style={{ color: colors.textMuted }}>Address</div>
-                      <div className="font-mono text-sm break-all mb-3">{walletAddress}</div>
+                    {/* Address */}
+                    <div className="rounded-xl p-3 mb-3" style={{ background: `${colors.background}80`, border: `1px solid ${colors.text}10` }}>
+                      <div className="text-[10px] mb-1" style={{ color: colors.textMuted }}>Address</div>
+                      <div className="font-mono text-xs break-all mb-2">{walletAddress}</div>
                       <div className="flex items-center gap-2">
-                        <div className="text-xs font-bold" style={{ color: colors.textMuted }}>{shortAddress}</div>
                         <motion.button
                           whileTap={{ scale: 0.95 }}
                           onClick={copyAddress}
-                          className="ml-auto px-3 py-2 rounded-xl border font-bold text-sm inline-flex items-center gap-2"
-                          style={{ 
-                            borderColor: copied ? colors.accent : `${colors.text}20`,
-                            background: copied ? `${colors.accent}20` : `${colors.text}05`,
-                            color: copied ? colors.accent : colors.text,
-                          }}
+                          className="px-2 py-1 rounded-lg border text-xs font-bold inline-flex items-center gap-1"
+                          style={{ borderColor: `${colors.text}20`, background: `${colors.text}05` }}
                         >
-                          <Copy className="w-4 h-4" />
+                          <Copy className="w-3 h-3" />
                           {copied ? 'Copied!' : 'Copy'}
                         </motion.button>
+                        <a
+                          href={`https://solscan.io/account/${walletAddress}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2 py-1 rounded-lg border text-xs font-bold inline-flex items-center gap-1"
+                          style={{ borderColor: `${colors.text}20`, background: `${colors.text}05` }}
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          Explorer
+                        </a>
                       </div>
                     </div>
 
-                    {/* QR Code */}
-                    <div 
-                      className="rounded-2xl p-4 border"
-                      style={{ background: `${colors.background}80`, borderColor: `${colors.text}10` }}
-                    >
-                      <div className="flex items-center gap-2 mb-3">
-                        <QrCode className="w-4 h-4" style={{ color: colors.accent }} />
-                        <div className="text-sm font-bold">Deposit QR</div>
+                    {/* Balance */}
+                    <div className="rounded-xl p-3 mb-3" style={{ background: `linear-gradient(135deg, ${colors.primary}20, ${colors.secondary}10)`, border: `1px solid ${colors.text}10` }}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-bold uppercase" style={{ color: colors.textMuted }}>Real Balance</span>
+                        <motion.button
+                          whileTap={{ scale: 0.95 }}
+                          onClick={refreshRealBalance}
+                          disabled={isLoadingBalance}
+                          className="p-1 rounded"
+                          style={{ background: `${colors.text}10` }}
+                        >
+                          <RotateCcw className={`w-3 h-3 ${isLoadingBalance ? 'animate-spin' : ''}`} />
+                        </motion.button>
                       </div>
-                      <div className="flex items-center justify-center">
-                        <div className="bg-white p-3 rounded-2xl">
-                          <QRCodeCanvas value={`solana:${walletAddress}`} size={180} includeMargin />
+                      <div className="text-2xl font-black">{realBalance.toFixed(4)} <span className="text-sm opacity-60">SOL</span></div>
+                    </div>
+
+                    {/* QR Code */}
+                    <div className="rounded-xl p-3 mb-3" style={{ background: `${colors.background}80`, border: `1px solid ${colors.text}10` }}>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <QrCode className="w-3 h-3" style={{ color: colors.accent }} />
+                        <span className="text-xs font-bold">Deposit SOL</span>
+                      </div>
+                      <div className="flex justify-center">
+                        <div className="bg-white p-2 rounded-xl">
+                          <QRCodeCanvas value={`solana:${walletAddress}`} size={140} />
                         </div>
                       </div>
-                      <div className="text-xs mt-3" style={{ color: colors.textMuted }}>
-                        Send SOL to this address. Then refresh.
+                      <p className="text-[10px] mt-2 text-center" style={{ color: colors.textMuted }}>
+                        Send SOL to this address to deposit
+                      </p>
+                    </div>
+
+                    {/* Withdraw Section */}
+                    <div className="rounded-xl p-3" style={{ background: `${colors.background}80`, border: `1px solid ${colors.text}10` }}>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Send className="w-3 h-3" style={{ color: colors.accent }} />
+                        <span className="text-xs font-bold">Withdraw SOL</span>
                       </div>
+                      <input
+                        type="text"
+                        placeholder="Recipient address"
+                        value={withdrawAddress}
+                        onChange={(e) => setWithdrawAddress(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border text-xs mb-2"
+                        style={{ borderColor: `${colors.text}20`, background: `${colors.text}05` }}
+                      />
+                      <div className="flex gap-2 mb-2">
+                        <input
+                          type="number"
+                          placeholder="Amount"
+                          value={withdrawAmount}
+                          onChange={(e) => setWithdrawAmount(e.target.value)}
+                          className="flex-1 px-3 py-2 rounded-lg border text-xs"
+                          style={{ borderColor: `${colors.text}20`, background: `${colors.text}05` }}
+                          step={0.001}
+                        />
+                        <motion.button
+                          whileTap={{ scale: 0.95 }}
+                          onClick={handleWithdraw}
+                          disabled={withdrawing || !withdrawAddress || !withdrawAmount}
+                          className="px-4 py-2 rounded-lg font-bold text-xs"
+                          style={{ 
+                            background: `linear-gradient(135deg, ${colors.primary}, ${colors.secondary})`,
+                            opacity: withdrawing ? 0.5 : 1,
+                          }}
+                        >
+                          {withdrawing ? 'Sending...' : 'Send'}
+                        </motion.button>
+                      </div>
+                      {withdrawError && (
+                        <p className="text-[10px] text-red-400">{withdrawError}</p>
+                      )}
+                    </div>
+
+                    {/* Private Key Warning */}
+                    <div className="mt-3 rounded-xl p-3" style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold text-red-400">⚠️ PRIVATE KEY (Save this!)</span>
+                        <motion.button
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setShowPrivateKey(!showPrivateKey)}
+                          className="text-[10px] font-bold px-2 py-0.5 rounded"
+                          style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#f87171' }}
+                        >
+                          {showPrivateKey ? 'Hide' : 'Show'}
+                        </motion.button>
+                      </div>
+                      {showPrivateKey && (
+                        <div className="font-mono text-[9px] break-all p-2 rounded bg-black/30 text-red-300">
+                          {wallet.secretKey}
+                        </div>
+                      )}
+                      <p className="text-[9px] text-red-300 mt-1">
+                        Save this key offline. We cannot recover your funds if lost!
+                      </p>
                     </div>
                   </>
                 ) : (
                   <div className="text-center py-8">
-                    <div className="text-sm mb-4" style={{ color: colors.textMuted }}>
-                      No wallet found. Generate a local wallet to continue.
-                    </div>
+                    <p className="text-sm mb-4" style={{ color: colors.textMuted }}>
+                      Generate a real Solana wallet to deposit and play with real SOL
+                    </p>
                     <motion.button
                       whileTap={{ scale: 0.95 }}
-                      onClick={generateLocalWallet}
-                      className="px-6 py-3 rounded-2xl font-bold"
-                      style={{ 
-                        background: `linear-gradient(135deg, ${colors.primary}, ${colors.secondary})`,
-                        boxShadow: `0 4px 20px ${colors.glow}`,
-                      }}
+                      onClick={createWallet}
+                      className="px-6 py-3 rounded-xl font-bold"
+                      style={{ background: `linear-gradient(135deg, ${colors.primary}, ${colors.secondary})` }}
                     >
                       Generate Wallet
                     </motion.button>
                   </div>
                 )}
+              </div>
+            </motion.div>
+          )}
 
-                {/* Balance */}
-                <div 
-                  className="rounded-2xl p-4 border mt-4"
-                  style={{ 
-                    background: `linear-gradient(135deg, ${colors.primary}20, ${colors.secondary}10)`,
-                    borderColor: `${colors.text}10`,
-                  }}
-                >
-                  <div className="text-sm font-black uppercase tracking-widest mb-1" style={{ color: colors.textMuted }}>
-                    Balance
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <div className="text-3xl font-black">{safeBalance.toFixed(4)}</div>
-                    <div className="text-sm font-bold" style={{ color: colors.textMuted }}>SOL</div>
-                  </div>
-                  <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    onClick={refreshBalance}
-                    className="mt-3 px-4 py-2 rounded-xl border font-bold text-sm inline-flex items-center gap-2"
-                    style={{ borderColor: `${colors.text}20`, background: `${colors.text}05` }}
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    Refresh Balance
-                  </motion.button>
+          {activeTab === 'leaderboard' && (
+            <motion.div
+              key="leaderboard"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-3"
+            >
+              <div 
+                className="rounded-2xl p-4 border"
+                style={{ background: `${colors.surface}80`, borderColor: `${colors.text}10` }}
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <Trophy className="w-5 h-5" style={{ color: colors.accent }} />
+                  <span className="text-sm font-black uppercase tracking-widest">Top Players</span>
+                </div>
+
+                <div className="space-y-2">
+                  {leaderboard.map((entry, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-3 p-3 rounded-xl"
+                      style={{ 
+                        background: i < 3 
+                          ? `linear-gradient(135deg, ${i === 0 ? 'rgba(255, 215, 0, 0.15)' : i === 1 ? 'rgba(192, 192, 192, 0.15)' : 'rgba(205, 127, 50, 0.15)'}, transparent)`
+                          : `${colors.background}60`,
+                        border: `1px solid ${colors.text}10`,
+                      }}
+                    >
+                      <div 
+                        className="w-7 h-7 rounded-full flex items-center justify-center font-black text-sm"
+                        style={{ 
+                          background: i === 0 ? '#ffd700' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : `${colors.text}20`,
+                          color: i < 3 ? '#000' : colors.text,
+                        }}
+                      >
+                        {entry.rank}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-bold text-sm">{entry.username}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-black text-sm" style={{ color: colors.accent }}>
+                          {entry.balance.toFixed(2)}
+                        </div>
+                        <div className="text-[10px]" style={{ color: colors.textMuted }}>SOL</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </motion.div>
@@ -347,32 +494,27 @@ const App: React.FC = () => {
           {activeTab === 'settings' && (
             <motion.div
               key="settings"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              className="p-4 space-y-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-3 space-y-3"
             >
               <div 
-                className="rounded-3xl p-5 border"
-                style={{ 
-                  background: `linear-gradient(135deg, ${colors.surface}, ${colors.background})`,
-                  borderColor: `${colors.text}10`,
-                }}
+                className="rounded-2xl p-4 border"
+                style={{ background: `${colors.surface}80`, borderColor: `${colors.text}10` }}
               >
-                <h2 className="text-lg font-black mb-4">Settings</h2>
+                <h2 className="text-sm font-black mb-4">Settings</h2>
                 
-                {/* Theme Selection */}
-                <div className="mb-6">
-                  <div className="text-sm font-bold uppercase tracking-widest mb-3" style={{ color: colors.textMuted }}>
-                    Theme
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
+                {/* Theme */}
+                <div className="mb-4">
+                  <div className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: colors.textMuted }}>Theme</div>
+                  <div className="grid grid-cols-4 gap-1.5">
                     {(Object.keys(themes) as ThemeName[]).map((t) => (
                       <motion.button
                         key={t}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setTheme(t)}
-                        className="py-3 px-4 rounded-xl border font-bold text-sm uppercase tracking-wider"
+                        className="py-2 rounded-lg border font-bold text-[10px] uppercase"
                         style={{
                           borderColor: theme === t ? colors.accent : `${colors.text}20`,
                           background: theme === t ? `${colors.accent}20` : `${colors.text}05`,
@@ -386,33 +528,28 @@ const App: React.FC = () => {
                 </div>
 
                 {/* Demo Balance */}
-                <div className="mb-6">
-                  <div className="text-sm font-bold uppercase tracking-widest mb-3" style={{ color: colors.textMuted }}>
-                    Demo Balance
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-2xl font-black">{demoBalance.toFixed(4)} SOL</div>
+                <div className="mb-4">
+                  <div className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: colors.textMuted }}>Demo Balance</div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-lg font-black">{demoBalance.toFixed(4)} SOL</div>
                     <motion.button
                       whileTap={{ scale: 0.95 }}
-                      onClick={() => setDemoBalance(5)}
-                      className="px-4 py-2 rounded-xl border font-bold text-sm"
+                      onClick={() => setDemoBalance(1)}
+                      className="px-3 py-1.5 rounded-lg border font-bold text-xs"
                       style={{ borderColor: `${colors.text}20`, background: `${colors.text}05` }}
                     >
-                      Reset to 5 SOL
+                      Reset to 1 SOL
                     </motion.button>
                   </div>
                 </div>
 
                 {/* About */}
-                <div 
-                  className="rounded-2xl p-4 border"
-                  style={{ background: `${colors.background}80`, borderColor: `${colors.text}10` }}
-                >
-                  <div className="text-sm font-bold mb-2">About SurfSol</div>
-                  <div className="text-xs" style={{ color: colors.textMuted }}>
-                    SurfSol is a provably fair Plinko game on Solana. Demo mode uses virtual balance for practice.
-                    Connect via Telegram bot for real SOL deposits.
-                  </div>
+                <div className="rounded-xl p-3" style={{ background: `${colors.background}80`, border: `1px solid ${colors.text}10` }}>
+                  <div className="text-xs font-bold mb-1">About SurfSol</div>
+                  <p className="text-[10px]" style={{ color: colors.textMuted }}>
+                    Provably fair Plinko on Solana. Generate a real wallet to deposit and play with real SOL.
+                    Demo mode uses virtual balance. House edge: 3-5% depending on risk level.
+                  </p>
                 </div>
               </div>
             </motion.div>
@@ -422,34 +559,32 @@ const App: React.FC = () => {
 
       {/* Bottom Navigation */}
       <nav 
-        className="fixed bottom-0 left-0 right-0 backdrop-blur-xl border-t px-6 py-4 flex justify-around items-center z-50"
-        style={{ 
-          background: `${colors.surface}95`,
-          borderColor: `${colors.text}10`,
-        }}
+        className="fixed bottom-0 left-0 right-0 backdrop-blur-xl border-t px-2 py-2 flex justify-around items-center z-50"
+        style={{ background: `${colors.surface}98`, borderColor: `${colors.text}10` }}
       >
         {[
-          { id: 'plinko' as const, icon: '🎰', label: 'Plinko' },
-          { id: 'wallet' as const, icon: <Wallet className="w-6 h-6" />, label: 'Wallet' },
-          { id: 'settings' as const, icon: <Settings className="w-6 h-6" />, label: 'Settings' },
+          { id: 'plinko' as const, icon: '🎰', label: 'Play' },
+          { id: 'wallet' as const, icon: <Wallet className="w-5 h-5" />, label: 'Wallet' },
+          { id: 'leaderboard' as const, icon: <Trophy className="w-5 h-5" />, label: 'Ranks' },
+          { id: 'settings' as const, icon: <Settings className="w-5 h-5" />, label: 'Settings' },
         ].map((item) => (
           <motion.button
             key={item.id}
             whileTap={{ scale: 0.9 }}
             onClick={() => setActiveTab(item.id)}
-            className="flex flex-col items-center gap-1 py-1 px-4"
+            className="flex flex-col items-center gap-0.5 py-1 px-3"
           >
             <div 
-              className="text-2xl"
+              className="text-xl"
               style={{ 
                 color: activeTab === item.id ? colors.accent : colors.textMuted,
-                filter: activeTab === item.id ? `drop-shadow(0 0 8px ${colors.glow})` : 'none',
+                filter: activeTab === item.id ? `drop-shadow(0 0 6px ${colors.glow})` : 'none',
               }}
             >
               {typeof item.icon === 'string' ? item.icon : item.icon}
             </div>
             <span 
-              className="text-[10px] font-black uppercase tracking-wider"
+              className="text-[9px] font-bold uppercase"
               style={{ color: activeTab === item.id ? colors.accent : colors.textMuted }}
             >
               {item.label}
