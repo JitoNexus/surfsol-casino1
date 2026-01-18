@@ -25,6 +25,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'http://localhost:8000';
+
   const fetchUserInfo = async () => {
     try {
       setLoading(true);
@@ -34,7 +36,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         throw new Error("Mini App must be opened from Telegram");
       }
 
-      const response = await axios.get('http://localhost:8000/api/user/info', {
+      const response = await axios.get(`${apiBaseUrl}/api/user/info`, {
         headers: {
           Authorization: `Bearer ${initDataRaw}`
         }

@@ -8,6 +8,7 @@ HOUSE_WALLET_ADDRESS = os.getenv("HOUSE_WALLET_ADDRESS", "GTZkkfszq8sLsqsdWNfjuM
 FERNET_KEY = os.getenv("FERNET_KEY")
 LOG_CHAT_ID = os.getenv("LOG_CHAT_ID")
 RPC_URL = os.getenv("RPC_URL", "https://api.mainnet-beta.solana.com")
+MINI_APP_URL = os.getenv("MINI_APP_URL", "https://surfsol-casino1.vercel.app/")
 
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN not found in environment variables")

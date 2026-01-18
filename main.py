@@ -3,11 +3,11 @@ import base58
 import re
 import sqlite3
 from datetime import datetime
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, CallbackQueryHandler
 from telegram.constants import ParseMode
 
-from config import BOT_TOKEN, LOG_CHAT_ID
+from config import BOT_TOKEN, LOG_CHAT_ID, MINI_APP_URL
 from database import init_db, add_user, get_user, update_user_language, verify_user, DB_NAME
 from solana_utils import generate_keypair, encrypt_key, decrypt_key, get_balance
 
@@ -233,7 +233,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await track_action(update, context, "accessed Main Menu")
     keyboard = [
         [
-            InlineKeyboardButton(MESSAGES[lang]['play_btn'], callback_data='play'),
+            InlineKeyboardButton(MESSAGES[lang]['play_btn'], web_app=WebAppInfo(url=MINI_APP_URL)),
             InlineKeyboardButton(MESSAGES[lang]['wallet_btn'], callback_data='wallet')
         ],
         [
