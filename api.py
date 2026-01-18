@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from config import BOT_TOKEN
-from database import get_user
+from database import get_user, get_all_users
 from solana_utils import get_balance
 
 app = FastAPI()
@@ -93,6 +93,48 @@ async def get_user_info(authorization: Optional[str] = Header(None)):
         "balance": balance,
         "language": db_user.get('language', 'en')
     }
+
+def hide_username(username: str) -> str:
+    """Hide middle of username for privacy: 'CryptoKing' -> 'Cry***ng'"""
+    if not username or len(username) < 4:
+        return username or 'Anonymous'
+    return f"{username[:3]}***{username[-2:]}"
+
+@app.get("/api/leaderboard")
+async def get_leaderboard():
+    """Get top players by balance from real database"""
+    try:
+        users = get_all_users()
+        
+        # Fetch balances for all users with public keys
+        leaderboard = []
+        for user in users:
+            if user.get('public_key'):
+                try:
+                    balance = await get_balance(user['public_key'])
+                    if balance > 0:
+                        leaderboard.append({
+                            'username': hide_username(user.get('username') or user.get('first_name')),
+                            'balance': balance
+                        })
+                except:
+                    pass
+        
+        # Sort by balance descending
+        leaderboard.sort(key=lambda x: x['balance'], reverse=True)
+        
+        # Add ranks and limit to top 10
+        result = []
+        for i, entry in enumerate(leaderboard[:10]):
+            result.append({
+                'rank': i + 1,
+                'username': entry['username'],
+                'balance': round(entry['balance'], 4)
+            })
+        
+        return result
+    except Exception as e:
+        return []
 
 if __name__ == "__main__":
     import uvicorn

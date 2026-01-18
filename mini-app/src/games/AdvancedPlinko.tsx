@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import { RotateCcw, Zap, ChevronDown, ChevronUp, TrendingDown, TrendingUp, Minus } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { playSound, playPegHit, playResult } from '../services/sounds';
 
 type RiskLevel = 'low' | 'medium' | 'high';
 
@@ -99,6 +100,7 @@ const AdvancedPlinko: React.FC<Props> = ({ demoBalance, setDemoBalance, onLoss }
     };
 
     setBalls((prev) => [...prev, ball]);
+    playSound('drop'); // Play drop sound
 
     let step = 0;
     const interval = setInterval(() => {
@@ -110,12 +112,14 @@ const AdvancedPlinko: React.FC<Props> = ({ demoBalance, setDemoBalance, onLoss }
         );
         
         const payout = bet * mult;
-        const netResult = payout - bet;
         const isWin = mult >= 1;
         
         setDemoBalance((v) => v + payout);
         setLastResult({ amount: payout, multiplier: mult, isWin });
         setHistory((prev) => [{ mult, isWin }, ...prev].slice(0, 20));
+        
+        // Play result sound
+        playResult(mult);
         
         // Track losses for house wallet
         if (!isWin && onLoss) {
@@ -127,11 +131,13 @@ const AdvancedPlinko: React.FC<Props> = ({ demoBalance, setDemoBalance, onLoss }
           setBalls((prev) => prev.filter((b) => b.id !== id));
         }, 1500);
       } else {
+        // Play peg hit sound
+        playPegHit();
         setBalls((prev) =>
           prev.map((b) => (b.id === id ? { ...b, step } : b))
         );
       }
-    }, 120); // Slightly slower for better visual
+    }, 100); // Faster for better feel
 
     return () => clearInterval(interval);
   }, [bet, multipliers, rows, setDemoBalance, simulateBallPath, onLoss]);
@@ -282,18 +288,23 @@ const AdvancedPlinko: React.FC<Props> = ({ demoBalance, setDemoBalance, onLoss }
         {/* Balls */}
         <AnimatePresence>
           {balls.map((ball) => {
-            // Calculate position based on path
+            // Calculate position based on path - ball starts at CENTER
             const currentStep = ball.step;
             const pathValue = ball.path[currentStep] ?? 0;
-            // Map path position to screen position
-            const totalSlots = rows + 1;
-            const xPercent = ((pathValue + 0.5) / totalSlots) * 100;
+            // Ball starts at 50% (center), each step moves it left or right
+            // pathValue is how many times it went right (0 to rows)
+            // Center offset: at step N, center would be N/2 rights
+            // So offset from center = pathValue - currentStep/2
+            const centerOffset = pathValue - (currentStep / 2);
+            // Each offset unit = percentage of board width
+            const offsetPercent = (centerOffset / (rows / 2)) * 40; // Max 40% offset from center
+            const xPercent = 50 + offsetPercent;
             const yPercent = (currentStep / rows) * 75 + 5; // 5% to 80%
 
             return (
               <motion.div
                 key={ball.id}
-                initial={{ opacity: 0, scale: 0 }}
+                initial={{ opacity: 0, scale: 0, left: '50%', top: '5%' }}
                 animate={{
                   opacity: 1,
                   scale: 1,
@@ -301,7 +312,7 @@ const AdvancedPlinko: React.FC<Props> = ({ demoBalance, setDemoBalance, onLoss }
                   top: `${yPercent}%`,
                 }}
                 exit={{ opacity: 0, scale: 0, transition: { duration: 0.3 } }}
-                transition={{ type: 'spring', damping: 20, stiffness: 400 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                 className="absolute w-3 h-3 -ml-1.5 rounded-full z-10"
                 style={{
                   background: `radial-gradient(circle at 30% 30%, #fff, ${colors.accent})`,

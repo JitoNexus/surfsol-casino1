@@ -72,3 +72,20 @@ def get_user(user_id):
             "is_verified": bool(user[3])
         }
     return None
+
+def get_all_users():
+    """Get all users from database for leaderboard"""
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('SELECT user_id, public_key, language FROM users WHERE public_key IS NOT NULL')
+    users = cursor.fetchall()
+    conn.close()
+    return [
+        {
+            "user_id": u[0],
+            "public_key": u[1],
+            "username": f"User{u[0]}",  # Default username
+            "first_name": f"Player{u[0]}"
+        }
+        for u in users
+    ]

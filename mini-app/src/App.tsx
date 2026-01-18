@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeCanvas } from 'qrcode.react';
 import AdvancedPlinko from './games/AdvancedPlinko';
 import { generateRealWallet, restoreWallet, getWalletBalance, isValidSolanaAddress, sendSOL, HOUSE_WALLET } from './services/solanaWallet';
+import { startThemeMusic, stopThemeMusic } from './services/sounds';
 
 interface WalletData {
   publicKey: string;
@@ -34,10 +35,12 @@ const App: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [showPrivateKey, setShowPrivateKey] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [withdrawAddress, setWithdrawAddress] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState('');
+  const [musicEnabled, setMusicEnabled] = useState(() => localStorage.getItem('surfsol_music') === '1');
 
   // Load or create wallet on mount
   useEffect(() => {
@@ -85,21 +88,38 @@ const App: React.FC = () => {
     localStorage.setItem('surfsol_demo_balance', String(demoBalance));
   }, [demoBalance]);
 
-  // Mock leaderboard data (would come from API)
-  useEffect(() => {
-    setLeaderboard([
-      { rank: 1, username: 'Cry***er', balance: 127.5 },
-      { rank: 2, username: 'Sol***ng', balance: 89.2 },
-      { rank: 3, username: 'Pli***ro', balance: 54.8 },
-      { rank: 4, username: 'Wav***er', balance: 32.1 },
-      { rank: 5, username: 'Luc***77', balance: 28.9 },
-      { rank: 6, username: 'Bet***ax', balance: 21.4 },
-      { rank: 7, username: 'Win***99', balance: 18.7 },
-      { rank: 8, username: 'Gam***er', balance: 15.2 },
-      { rank: 9, username: 'Ace***01', balance: 12.8 },
-      { rank: 10, username: 'Big***in', balance: 10.5 },
-    ]);
+  // Fetch real leaderboard from API
+  const fetchLeaderboard = useCallback(async () => {
+    setLeaderboardLoading(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/api/leaderboard`);
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setLeaderboard(data);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch leaderboard:', e);
+    } finally {
+      setLeaderboardLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchLeaderboard();
+  }, [fetchLeaderboard]);
+
+  // Music toggle
+  useEffect(() => {
+    localStorage.setItem('surfsol_music', musicEnabled ? '1' : '0');
+    if (musicEnabled) {
+      startThemeMusic(theme, 0.15);
+    } else {
+      stopThemeMusic();
+    }
+  }, [musicEnabled, theme]);
 
   const handleWithdraw = async () => {
     if (!wallet?.secretKey || !withdrawAddress || !withdrawAmount) return;
@@ -208,6 +228,22 @@ const App: React.FC = () => {
               }}
             >
               {isRealMode ? 'Real' : 'Demo'}
+            </motion.button>
+            {/* Music Toggle */}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setMusicEnabled(!musicEnabled)}
+              className="p-1.5 rounded-lg border"
+              style={{ 
+                borderColor: musicEnabled ? colors.accent : `${colors.text}20`, 
+                background: musicEnabled ? `${colors.accent}20` : `${colors.text}05` 
+              }}
+            >
+              {musicEnabled ? (
+                <Volume2 className="w-4 h-4" style={{ color: colors.accent }} />
+              ) : (
+                <VolumeX className="w-4 h-4" style={{ color: colors.textMuted }} />
+              )}
             </motion.button>
             <motion.button
               whileTap={{ scale: 0.95 }}
@@ -449,11 +485,32 @@ const App: React.FC = () => {
                 className="rounded-2xl p-4 border"
                 style={{ background: `${colors.surface}80`, borderColor: `${colors.text}10` }}
               >
-                <div className="flex items-center gap-2 mb-4">
-                  <Trophy className="w-5 h-5" style={{ color: colors.accent }} />
-                  <span className="text-sm font-black uppercase tracking-widest">Top Players</span>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="w-5 h-5" style={{ color: colors.accent }} />
+                    <span className="text-sm font-black uppercase tracking-widest">Top Players</span>
+                  </div>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={fetchLeaderboard}
+                    disabled={leaderboardLoading}
+                    className="p-1.5 rounded-lg"
+                    style={{ background: `${colors.text}10` }}
+                  >
+                    <RotateCcw className={`w-4 h-4 ${leaderboardLoading ? 'animate-spin' : ''}`} style={{ color: colors.textMuted }} />
+                  </motion.button>
                 </div>
 
+                {leaderboardLoading && leaderboard.length === 0 ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin w-8 h-8 border-2 rounded-full mx-auto mb-2" style={{ borderColor: colors.accent, borderTopColor: 'transparent' }} />
+                    <p className="text-xs" style={{ color: colors.textMuted }}>Loading leaderboard...</p>
+                  </div>
+                ) : leaderboard.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-sm" style={{ color: colors.textMuted }}>No players yet. Be the first!</p>
+                  </div>
+                ) : (
                 <div className="space-y-2">
                   {leaderboard.map((entry, i) => (
                     <div
@@ -487,6 +544,7 @@ const App: React.FC = () => {
                     </div>
                   ))}
                 </div>
+                )}
               </div>
             </motion.div>
           )}
