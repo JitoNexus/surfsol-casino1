@@ -162,6 +162,8 @@ const App: React.FC = () => {
     );
   }
 
+  const tab = activeTab as 'lobby' | 'games' | 'wallet' | 'vip' | 'plinko';
+
   return (
     <div className="min-h-screen bg-surfsol-darker text-white pb-24 relative overflow-hidden">
       {/* Background Waves Decoration */}
@@ -283,14 +285,14 @@ const App: React.FC = () => {
       <nav className="fixed bottom-0 left-0 w-full glass-morphism border-t border-white/10 px-6 py-4 flex justify-between items-center z-50">
         <button
           onClick={() => setActiveTab('lobby')}
-          className={`flex flex-col items-center space-y-1 ${activeTab === 'lobby' ? 'text-surfsol-accent drop-shadow-[0_0_8px_rgba(100,255,218,0.4)]' : 'text-gray-500 hover:text-white'} transition-colors`}
+          className={`flex flex-col items-center space-y-1 ${tab === 'lobby' ? 'text-surfsol-accent drop-shadow-[0_0_8px_rgba(100,255,218,0.4)]' : 'text-gray-500 hover:text-white'} transition-colors`}
         >
           <LayoutGrid className="w-6 h-6" />
           <span className="text-[10px] font-black uppercase tracking-tighter">Lobby</span>
         </button>
         <button
           onClick={() => setActiveTab('games')}
-          className={`flex flex-col items-center space-y-1 ${activeTab === 'games' ? 'text-surfsol-accent' : 'text-gray-500 hover:text-white'} transition-colors`}
+          className={`flex flex-col items-center space-y-1 ${tab === 'games' ? 'text-surfsol-accent' : 'text-gray-500 hover:text-white'} transition-colors`}
         >
           <Coins className="w-6 h-6" />
           <span className="text-[10px] font-black uppercase tracking-tighter">Games</span>
@@ -304,14 +306,14 @@ const App: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('wallet')}
-          className={`flex flex-col items-center space-y-1 ${activeTab === 'wallet' ? 'text-surfsol-accent' : 'text-gray-500 hover:text-white'} transition-colors`}
+          className={`flex flex-col items-center space-y-1 ${tab === 'wallet' ? 'text-surfsol-accent' : 'text-gray-500 hover:text-white'} transition-colors`}
         >
           <Wallet className="w-6 h-6" />
           <span className="text-[10px] font-black uppercase tracking-tighter">Wallet</span>
         </button>
         <button
           onClick={() => setActiveTab('vip')}
-          className={`flex flex-col items-center space-y-1 ${activeTab === 'vip' ? 'text-surfsol-accent' : 'text-gray-500 hover:text-white'} transition-colors`}
+          className={`flex flex-col items-center space-y-1 ${tab === 'vip' ? 'text-surfsol-accent' : 'text-gray-500 hover:text-white'} transition-colors`}
         >
           <Trophy className="w-6 h-6" />
           <span className="text-[10px] font-black uppercase tracking-tighter">VIP</span>
