@@ -1,12 +1,43 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from './context/AppContext';
 import { Wallet, Coins, Info, Shield, Trophy, LayoutGrid, RotateCcw } from 'lucide-react';
 import { motion } from 'framer-motion';
+
+import BgmController from './components/BgmController';
+import GamesScreen from './screens/GamesScreen';
+import WalletScreen from './screens/WalletScreen';
+import VipScreen from './screens/VipScreen';
+import PlinkoGame from './games/PlinkoGame';
 
 const App: React.FC = () => {
   const { user, loading, error, refreshBalance } = useAppContext();
 
   const safeBalance = Number.isFinite(Number(user?.balance)) ? Number(user?.balance) : 0;
+
+  const [activeTab, setActiveTab] = useState<'lobby' | 'games' | 'wallet' | 'vip' | 'plinko'>('lobby');
+  const [demoMode, setDemoMode] = useState<boolean>(() => {
+    const v = localStorage.getItem('surfsol_demo_mode');
+    return v ? v === '1' : true;
+  });
+  const [demoBalance, setDemoBalance] = useState<number>(() => {
+    const v = localStorage.getItem('surfsol_demo_balance');
+    const n = v ? Number(v) : 5;
+    return Number.isFinite(n) ? n : 5;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('surfsol_demo_mode', demoMode ? '1' : '0');
+  }, [demoMode]);
+
+  useEffect(() => {
+    localStorage.setItem('surfsol_demo_balance', String(demoBalance));
+  }, [demoBalance]);
+
+  const shortAddress = useMemo(() => {
+    const addr = user?.public_key;
+    if (!addr) return '';
+    return `${addr.slice(0, 6)}…${addr.slice(-6)}`;
+  }, [user?.public_key]);
 
   if (loading) {
     return (
@@ -35,6 +66,102 @@ const App: React.FC = () => {
     );
   }
 
+  if (activeTab === 'wallet') {
+    return (
+      <div className="min-h-screen bg-surfsol-darker text-white relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-surfsol-primary/20 to-transparent pointer-events-none opacity-50" />
+        <header className="p-6 flex items-center justify-between sticky top-0 z-50 glass-morphism mb-4">
+          <div>
+            <h1 className="text-xl font-black tracking-tight text-white leading-none">WALLET</h1>
+            <p className="text-[10px] text-surfsol-accent uppercase tracking-[0.2em] font-bold mt-1">{shortAddress || 'SurfSol'}</p>
+          </div>
+          <BgmController />
+        </header>
+
+        <WalletScreen
+          address={user?.public_key}
+          balance={safeBalance}
+          onBack={() => setActiveTab('lobby')}
+          onRefresh={refreshBalance}
+        />
+      </div>
+    );
+  }
+
+  if (activeTab === 'vip') {
+    return (
+      <div className="min-h-screen bg-surfsol-darker text-white relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-surfsol-primary/20 to-transparent pointer-events-none opacity-50" />
+        <header className="p-6 flex items-center justify-between sticky top-0 z-50 glass-morphism mb-4">
+          <div>
+            <h1 className="text-xl font-black tracking-tight text-white leading-none">VIP</h1>
+            <p className="text-[10px] text-surfsol-accent uppercase tracking-[0.2em] font-bold mt-1">SurfSol</p>
+          </div>
+          <BgmController />
+        </header>
+
+        <VipScreen onBack={() => setActiveTab('lobby')} />
+      </div>
+    );
+  }
+
+  if (activeTab === 'games') {
+    return (
+      <div className="min-h-screen bg-surfsol-darker text-white relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-surfsol-primary/20 to-transparent pointer-events-none opacity-50" />
+        <header className="p-6 flex items-center justify-between sticky top-0 z-50 glass-morphism mb-4">
+          <div>
+            <h1 className="text-xl font-black tracking-tight text-white leading-none">GAMES</h1>
+            <p className="text-[10px] text-surfsol-accent uppercase tracking-[0.2em] font-bold mt-1">{demoMode ? 'Demo Mode' : 'Real Mode'}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setDemoMode(v => !v)}
+              className={`px-3 py-2 rounded-full border text-xs font-black uppercase tracking-wider ${demoMode ? 'bg-surfsol-accent/15 border-surfsol-accent/30 text-surfsol-accent' : 'bg-white/5 border-white/10 text-gray-300'}`}
+            >
+              {demoMode ? 'Demo' : 'Real'}
+            </button>
+            <BgmController />
+          </div>
+        </header>
+
+        <GamesScreen
+          demoMode={demoMode}
+          demoBalance={demoBalance}
+          realBalance={safeBalance}
+          onBack={() => setActiveTab('lobby')}
+          onSelectPlinko={() => {
+            if (demoMode) setActiveTab('plinko');
+          }}
+          onToggleDemo={(v) => setDemoMode(v)}
+          onResetDemo={() => setDemoBalance(5)}
+        />
+      </div>
+    );
+  }
+
+  if (activeTab === 'plinko') {
+    return (
+      <div className="min-h-screen bg-surfsol-darker text-white relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-surfsol-primary/20 to-transparent pointer-events-none opacity-50" />
+        <header className="p-6 flex items-center justify-between sticky top-0 z-50 glass-morphism mb-4">
+          <div>
+            <h1 className="text-xl font-black tracking-tight text-white leading-none">PLINKO</h1>
+            <p className="text-[10px] text-surfsol-accent uppercase tracking-[0.2em] font-bold mt-1">Demo</p>
+          </div>
+          <BgmController />
+        </header>
+
+        <PlinkoGame
+          demoMode={demoMode}
+          demoBalance={demoBalance}
+          setDemoBalance={(updater) => setDemoBalance(updater)}
+          onBack={() => setActiveTab('games')}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-surfsol-darker text-white pb-24 relative overflow-hidden">
       {/* Background Waves Decoration */}
@@ -52,9 +179,14 @@ const App: React.FC = () => {
             <p className="text-[10px] text-surfsol-accent uppercase tracking-[0.2em] font-bold mt-1">Casino</p>
           </div>
         </div>
-        <div className="flex items-center space-x-2 bg-surfsol-darker/50 px-3 py-1.5 rounded-full border border-white/5">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-          <span className="text-xs font-medium text-gray-300">Live</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setDemoMode(v => !v)}
+            className={`px-3 py-2 rounded-full border text-xs font-black uppercase tracking-wider ${demoMode ? 'bg-surfsol-accent/15 border-surfsol-accent/30 text-surfsol-accent' : 'bg-white/5 border-white/10 text-gray-300'}`}
+          >
+            {demoMode ? 'Demo' : 'Real'}
+          </button>
+          <BgmController />
         </div>
       </header>
 
@@ -149,23 +281,38 @@ const App: React.FC = () => {
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 w-full glass-morphism border-t border-white/10 px-6 py-4 flex justify-between items-center z-50">
-        <button className="flex flex-col items-center space-y-1 text-surfsol-accent drop-shadow-[0_0_8px_rgba(100,255,218,0.4)]">
+        <button
+          onClick={() => setActiveTab('lobby')}
+          className={`flex flex-col items-center space-y-1 ${activeTab === 'lobby' ? 'text-surfsol-accent drop-shadow-[0_0_8px_rgba(100,255,218,0.4)]' : 'text-gray-500 hover:text-white'} transition-colors`}
+        >
           <LayoutGrid className="w-6 h-6" />
           <span className="text-[10px] font-black uppercase tracking-tighter">Lobby</span>
         </button>
-        <button className="flex flex-col items-center space-y-1 text-gray-500 hover:text-white transition-colors">
+        <button
+          onClick={() => setActiveTab('games')}
+          className={`flex flex-col items-center space-y-1 ${activeTab === 'games' ? 'text-surfsol-accent' : 'text-gray-500 hover:text-white'} transition-colors`}
+        >
           <Coins className="w-6 h-6" />
           <span className="text-[10px] font-black uppercase tracking-tighter">Games</span>
         </button>
-        <div className="w-14 h-14 bg-surfsol-primary rounded-full flex items-center justify-center shadow-lg shadow-surfsol-primary/40 -mt-12 border-4 border-surfsol-darker relative group overflow-hidden">
+        <button
+          onClick={() => setActiveTab('games')}
+          className="w-14 h-14 bg-surfsol-primary rounded-full flex items-center justify-center shadow-lg shadow-surfsol-primary/40 -mt-12 border-4 border-surfsol-darker relative group overflow-hidden"
+        >
           <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity"></div>
           <span className="text-2xl">🎲</span>
-        </div>
-        <button className="flex flex-col items-center space-y-1 text-gray-500 hover:text-white transition-colors">
+        </button>
+        <button
+          onClick={() => setActiveTab('wallet')}
+          className={`flex flex-col items-center space-y-1 ${activeTab === 'wallet' ? 'text-surfsol-accent' : 'text-gray-500 hover:text-white'} transition-colors`}
+        >
           <Wallet className="w-6 h-6" />
           <span className="text-[10px] font-black uppercase tracking-tighter">Wallet</span>
         </button>
-        <button className="flex flex-col items-center space-y-1 text-gray-500 hover:text-white transition-colors">
+        <button
+          onClick={() => setActiveTab('vip')}
+          className={`flex flex-col items-center space-y-1 ${activeTab === 'vip' ? 'text-surfsol-accent' : 'text-gray-500 hover:text-white'} transition-colors`}
+        >
           <Trophy className="w-6 h-6" />
           <span className="text-[10px] font-black uppercase tracking-tighter">VIP</span>
         </button>
