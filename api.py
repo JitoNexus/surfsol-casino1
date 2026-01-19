@@ -16,9 +16,10 @@ class WithdrawRequest(BaseModel):
 
 class DepositRequest(BaseModel):
     amount: float
+    referral_code: Optional[str] = None
 
 from config import BOT_TOKEN
-from database import get_user, get_all_users, get_user_initial_deposit, record_deposit, add_pending_withdrawal
+from database import get_user, get_all_users, get_user_initial_deposit, record_deposit, add_pending_withdrawal, get_user_bonus, add_first_deposit_bonus, update_bonus_rollover, generate_referral_code, get_referral_info, process_referral_deposit
 from solana_utils import get_balance
 
 app = FastAPI()
@@ -195,7 +196,7 @@ async def request_withdrawal(request: WithdrawRequest, authorization: Optional[s
 
 @app.post("/api/deposit")
 async def record_deposit_endpoint(request: DepositRequest, authorization: Optional[str] = Header(None)):
-    """Record a deposit for the user"""
+    """Record a deposit for the user and add first deposit bonus"""
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing authorization header")
     
@@ -214,10 +215,111 @@ async def record_deposit_endpoint(request: DepositRequest, authorization: Option
     
     record_deposit(user_id, request.amount)
     
-    return {
+    # Process referral if provided
+    referral_info = None
+    if request.referral_code:
+        referral_info = process_referral_deposit(request.referral_code, request.amount)
+    
+    # Check for first deposit bonus (minimum $5)
+    bonus_info = None
+    if request.amount >= 5:
+        bonus_added = add_first_deposit_bonus(user_id, request.amount)
+        if bonus_added:
+            bonus_info = get_user_bonus(user_id)
+    
+    response = {
         "status": "recorded",
         "message": "Deposit recorded successfully",
         "amount": request.amount
+    }
+    
+    if bonus_info:
+        response["bonus"] = bonus_info['bonus_balance']
+        response["required_rollover"] = bonus_info['required_rollover']
+        response["message"] = "Deposit recorded with bonus!"
+    
+    if referral_info:
+        response["referral_processed"] = True
+        response["referrer_earnings"] = referral_info['earnings']
+    
+    return response
+
+@app.get("/api/referral")
+async def get_referral(authorization: Optional[str] = Header(None)):
+    """Get user's referral code and stats"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing authorization header")
+    
+    # Extract initData from the Bearer token
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization format")
+    
+    init_data = authorization.split(" ")[1]
+    tg_user = verify_telegram_data(init_data)
+    
+    user_id = tg_user.get('id')
+    db_user = get_user(user_id)
+    
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Generate or get existing referral code
+    referral_code = generate_referral_code(user_id)
+    referral_stats = get_referral_info(user_id)
+    
+    return {
+        "referral_code": referral_code,
+        "referral_link": f"https://t.me/SurfSolCasinoBot?start={referral_code}",
+        "stats": referral_stats
+    }
+
+@app.get("/api/bonus")
+async def get_bonus_info(authorization: Optional[str] = Header(None)):
+    """Get user's bonus information"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing authorization header")
+    
+    # Extract initData from the Bearer token
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization format")
+    
+    init_data = authorization.split(" ")[1]
+    tg_user = verify_telegram_data(init_data)
+    
+    user_id = tg_user.get('id')
+    db_user = get_user(user_id)
+    
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    bonus_info = get_user_bonus(user_id)
+    return bonus_info
+
+@app.post("/api/bonus/rollover")
+async def update_rollover(request: DepositRequest, authorization: Optional[str] = Header(None)):
+    """Update bonus rollover from winnings"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing authorization header")
+    
+    # Extract initData from the Bearer token
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization format")
+    
+    init_data = authorization.split(" ")[1]
+    tg_user = verify_telegram_data(init_data)
+    
+    user_id = tg_user.get('id')
+    db_user = get_user(user_id)
+    
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    success = update_bonus_rollover(user_id, request.amount)
+    bonus_info = get_user_bonus(user_id)
+    
+    return {
+        "status": "updated" if success else "failed",
+        "bonus_info": bonus_info
     }
 
 if __name__ == "__main__":
