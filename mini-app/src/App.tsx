@@ -63,6 +63,18 @@ const App: React.FC = () => {
 
   // Load or create wallet on mount
   useEffect(() => {
+    // Save Telegram init data if available
+    if (window.Telegram?.WebApp?.initData) {
+      localStorage.setItem('surfsol_telegram_data', window.Telegram.WebApp.initData);
+      console.log('Telegram data saved');
+    } else {
+      console.warn('No Telegram data available');
+      // For testing: create mock data
+      const mockData = 'user=%7B%22id%22%3A123456%2C%22first_name%22%3A%22Test%22%2C%22username%22%3A%22testuser%22%7D&auth_date=1640995200&hash=mock';
+      localStorage.setItem('surfsol_telegram_data', mockData);
+      console.log('Using mock Telegram data for testing');
+    }
+    
     const savedKey = localStorage.getItem('surfsol_wallet_secret');
     if (savedKey) {
       const restored = restoreWallet(savedKey);
@@ -81,7 +93,7 @@ const App: React.FC = () => {
     
     // Save wallet to database
     try {
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002';
       await fetch(`${apiUrl}/api/wallet/save`, {
         method: 'POST',
         headers: {
@@ -129,7 +141,7 @@ const App: React.FC = () => {
   const fetchLeaderboard = useCallback(async () => {
     setLeaderboardLoading(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002';
       const response = await fetch(`${apiUrl}/api/leaderboard`);
       if (response.ok) {
         const data = await response.json();
@@ -153,7 +165,7 @@ const App: React.FC = () => {
     if (!wallet) return;
     setReferralLoading(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002';
       const response = await fetch(`${apiUrl}/api/referral`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('surfsol_telegram_data') || ''}`
