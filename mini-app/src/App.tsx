@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useTheme, ThemeName, themes } from './context/ThemeContext';
-import { Wallet, Copy, QrCode, Settings, Volume2, VolumeX, Palette, RotateCcw, Trophy, ExternalLink, Send, Sparkles, Flame, Star, Zap } from 'lucide-react';
+import { Wallet, Copy, QrCode, Settings, Volume2, VolumeX, Palette, RotateCcw, Trophy, ExternalLink, Send, Sparkles, Flame, Star, Zap, Users, Gift } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeCanvas } from 'qrcode.react';
 import AdvancedPlinko from './games/AdvancedPlinko';
@@ -24,17 +24,18 @@ const App: React.FC = () => {
 
   // Dynamic background particles
   const particles = useMemo(() => {
-    return Array.from({ length: 20 }).map((_, i) => ({
+    return Array.from({ length: 30 }).map((_, i) => ({
       id: i,
       x: Math.random() * 100,
       y: Math.random() * 100,
-      size: Math.random() * 3 + 1,
-      duration: Math.random() * 20 + 10,
+      size: Math.random() * 4 + 1,
+      duration: Math.random() * 15 + 5,
       delay: Math.random() * 5,
+      type: Math.random() > 0.5 ? 'circle' : 'star',
     }));
   }, []);
 
-  const [activeTab, setActiveTab] = useState<'plinko' | 'wallet' | 'leaderboard' | 'settings'>('plinko');
+  const [activeTab, setActiveTab] = useState<'plinko' | 'wallet' | 'leaderboard' | 'referrals' | 'settings'>('plinko');
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [realBalance, setRealBalance] = useState<number>(0);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
@@ -57,6 +58,8 @@ const App: React.FC = () => {
   const [sfxEnabled, setSfxEnabledState] = useState(() => localStorage.getItem('surfsol_sfx') !== '0');
   const [showParticles, setShowParticles] = useState(true);
   const [lastWin, setLastWin] = useState<number | null>(null);
+  const [referralInfo, setReferralInfo] = useState<any>(null);
+  const [referralLoading, setReferralLoading] = useState(false);
 
   // Load or create wallet on mount
   useEffect(() => {
@@ -126,6 +129,34 @@ const App: React.FC = () => {
   useEffect(() => {
     fetchLeaderboard();
   }, [fetchLeaderboard]);
+
+  // Fetch referral info
+  const fetchReferralInfo = useCallback(async () => {
+    if (!wallet) return;
+    setReferralLoading(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/api/referral`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('surfsol_telegram_data') || ''}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setReferralInfo(data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch referral info:', e);
+    } finally {
+      setReferralLoading(false);
+    }
+  }, [wallet]);
+
+  useEffect(() => {
+    if (wallet) {
+      fetchReferralInfo();
+    }
+  }, [wallet, fetchReferralInfo]);
 
   // Music toggle
   useEffect(() => {
@@ -222,18 +253,19 @@ const App: React.FC = () => {
           {particles.map((particle) => (
             <motion.div
               key={particle.id}
-              className="absolute rounded-full"
+              className="absolute"
               style={{
-                background: colors.accent,
                 left: `${particle.x}%`,
                 top: `${particle.y}%`,
                 width: `${particle.size}px`,
                 height: `${particle.size}px`,
               }}
               animate={{
-                y: [0, -100, 0],
+                y: [0, -150, 0],
+                x: [0, particle.type === 'star' ? 20 : -20, 0],
                 opacity: [0, 1, 0],
-                scale: [1, 1.5, 1],
+                scale: [1, particle.type === 'star' ? 2 : 1.5, 1],
+                rotate: particle.type === 'star' ? [0, 360] : 0,
               }}
               transition={{
                 duration: particle.duration,
@@ -241,7 +273,13 @@ const App: React.FC = () => {
                 repeat: Infinity,
                 ease: "easeInOut",
               }}
-            />
+            >
+              {particle.type === 'star' ? (
+                <Star className="w-full h-full" style={{ color: colors.accent, fill: colors.accent }} />
+              ) : (
+                <div className="w-full h-full rounded-full" style={{ background: colors.accent }} />
+              )}
+            </motion.div>
           ))}
         </div>
       )}
@@ -403,6 +441,123 @@ const App: React.FC = () => {
             </motion.div>
           )}
 
+          {activeTab === 'referrals' && (
+            <motion.div
+              key="referrals"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-3 space-y-3"
+            >
+              {/* Referral Card */}
+              <div 
+                className="rounded-2xl p-4 border relative overflow-hidden"
+                style={{ background: `${colors.surface}80`, borderColor: `${colors.text}10` }}
+              >
+                {/* Animated border glow */}
+                <motion.div
+                  className="absolute inset-0 rounded-2xl"
+                  style={{
+                    background: `linear-gradient(45deg, ${colors.accent}40, ${colors.primary}40, ${colors.secondary}40, ${colors.accent}40)`,
+                    backgroundSize: '200% 200%',
+                  }}
+                  animate={{
+                    backgroundPosition: ['0% 0%', '100% 100%', '0% 0%'],
+                  }}
+                  transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: 'linear',
+                  }}
+                />
+                
+                <div className="relative">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Users className="w-5 h-5" style={{ color: colors.accent }} />
+                    <span className="text-sm font-black uppercase tracking-widest">Referral Program</span>
+                  </div>
+
+                  {referralLoading ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin w-8 h-8 border-2 rounded-full mx-auto mb-2" style={{ borderColor: colors.accent, borderTopColor: 'transparent' }} />
+                      <p className="text-xs" style={{ color: colors.textMuted }}>Loading referral info...</p>
+                    </div>
+                  ) : referralInfo ? (
+                    <div className="space-y-4">
+                      {/* Referral Code */}
+                      <div className="rounded-xl p-3" style={{ background: `${colors.background}80`, border: `1px solid ${colors.text}10` }}>
+                        <div className="text-[10px] mb-1" style={{ color: colors.textMuted }}>Your Referral Code</div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 font-mono text-lg font-black text-center" style={{ color: colors.accent }}>
+                            {referralInfo.referral_code}
+                          </div>
+                          <motion.button
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => {
+                              navigator.clipboard.writeText(referralInfo.referral_code);
+                              setCopied(true);
+                              setTimeout(() => setCopied(false), 2000);
+                            }}
+                            className="px-2 py-1 rounded-lg border text-xs font-bold"
+                            style={{ borderColor: `${colors.text}20`, background: `${colors.text}05` }}
+                          >
+                            <Copy className="w-3 h-3" />
+                            {copied ? 'Copied!' : 'Copy'}
+                          </motion.button>
+                        </div>
+                      </div>
+
+                      {/* Referral Link */}
+                      <div className="rounded-xl p-3" style={{ background: `${colors.background}80`, border: `1px solid ${colors.text}10` }}>
+                        <div className="text-[10px] mb-1" style={{ color: colors.textMuted }}>Referral Link</div>
+                        <div className="font-mono text-xs break-all p-2 rounded bg-black/30">
+                          {referralInfo.referral_link}
+                        </div>
+                      </div>
+
+                      {/* Stats */}
+                      {referralInfo.stats && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="rounded-xl p-3 text-center" style={{ background: `linear-gradient(135deg, ${colors.primary}20, ${colors.secondary}10)`, border: `1px solid ${colors.text}10` }}>
+                            <div className="text-2xl font-black" style={{ color: colors.accent }}>
+                              {referralInfo.stats.referral_count}
+                            </div>
+                            <div className="text-[10px]" style={{ color: colors.textMuted }}>Referrals</div>
+                          </div>
+                          <div className="rounded-xl p-3 text-center" style={{ background: `linear-gradient(135deg, ${colors.primary}20, ${colors.secondary}10)`, border: `1px solid ${colors.text}10` }}>
+                            <div className="text-2xl font-black" style={{ color: colors.accent }}>
+                              ${referralInfo.stats.referral_earnings?.toFixed(2) || '0.00'}
+                            </div>
+                            <div className="text-[10px]" style={{ color: colors.textMuted }}>Earned</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Tier Info */}
+                      <div className="rounded-xl p-3" style={{ background: `${colors.background}80`, border: `1px solid ${colors.text}10` }}>
+                        <div className="text-[10px] mb-2" style={{ color: colors.textMuted }}>Reward Tiers</div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-xs">
+                            <span>Tier 1: <span className="font-bold">0-9 referrals</span></span>
+                            <span className="font-bold" style={{ color: colors.accent }}>$5 per $50</span>
+                          </div>
+                          <div className="flex justify-between text-xs">
+                            <span>Tier 2: <span className="font-bold">10+ referrals</span></span>
+                            <span className="font-bold" style={{ color: colors.accent }}>$5.5 per $50</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-sm" style={{ color: colors.textMuted }}>Create a wallet to get your referral code</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
           {activeTab === 'wallet' && (
             <motion.div
               key="wallet"
@@ -469,6 +624,16 @@ const App: React.FC = () => {
                         </motion.button>
                       </div>
                       <div className="text-2xl font-black">{realBalance.toFixed(4)} <span className="text-sm opacity-60">SOL</span></div>
+                    <div className="flex gap-2 mt-2">
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => isRealMode ? refreshRealBalance() : setDemoBalance(1)}
+                        className="px-2 py-1 rounded-lg border text-[10px] font-bold"
+                        style={{ borderColor: `${colors.text}20`, background: `${colors.text}05` }}
+                      >
+                        {isRealMode ? 'Refresh' : 'Reset'}
+                      </motion.button>
+                    </div>
                     </div>
 
                     {/* QR Code */}
@@ -737,6 +902,7 @@ const App: React.FC = () => {
         {[
           { id: 'plinko' as const, icon: '🎰', label: 'Play' },
           { id: 'wallet' as const, icon: <Wallet className="w-5 h-5" />, label: 'Wallet' },
+          { id: 'referrals' as const, icon: <Users className="w-5 h-5" />, label: 'Referrals' },
           { id: 'leaderboard' as const, icon: <Trophy className="w-5 h-5" />, label: 'Ranks' },
           { id: 'settings' as const, icon: <Settings className="w-5 h-5" />, label: 'Settings' },
         ].map((item) => (
