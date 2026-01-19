@@ -60,6 +60,33 @@ const App: React.FC = () => {
   const [lastWin, setLastWin] = useState<number | null>(null);
   const [referralInfo, setReferralInfo] = useState<any>(null);
   const [referralLoading, setReferralLoading] = useState(false);
+  const [recentWins, setRecentWins] = useState<Array<{user: string, amount: number, time: string}>>([]);
+
+  // Generate fake recent wins
+  useEffect(() => {
+    const fakeWins = [
+      { user: "CryptoKing", amount: 234.56, time: "just now" },
+      { user: "SolMaster", amount: 189.23, time: "2 min ago" },
+      { user: "DiamondHands", amount: 156.78, time: "3 min ago" },
+      { user: "MoonShot", amount: 98.45, time: "5 min ago" },
+      { user: "BullRun2024", amount: 87.32, time: "7 min ago" },
+    ];
+    setRecentWins(fakeWins);
+
+    // Simulate new wins appearing
+    const interval = setInterval(() => {
+      const names = ["CryptoWhale", "RocketFuel", "StakeKing", "WaveRider", "SOLNinja"];
+      const randomName = names[Math.floor(Math.random() * names.length)];
+      const randomAmount = Math.floor(Math.random() * 200) + 50;
+      
+      setRecentWins(prev => [
+        { user: randomName, amount: randomAmount, time: "just now" },
+        ...prev.slice(0, 4)
+      ]);
+    }, 15000); // New win every 15 seconds
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Load or create wallet on mount
   useEffect(() => {
@@ -93,7 +120,7 @@ const App: React.FC = () => {
     console.log('Saving wallet to database:', walletData.publicKey);
     
     try {
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
       const telegramData = localStorage.getItem('surfsol_telegram_data') || '';
       console.log('Telegram data available:', !!telegramData);
       
@@ -179,23 +206,29 @@ const App: React.FC = () => {
     localStorage.setItem('surfsol_demo_balance', String(demoBalance));
   }, [demoBalance]);
 
-  // Fetch real leaderboard from API
+  // Fetch fake leaderboard for production
   const fetchLeaderboard = useCallback(async () => {
     setLeaderboardLoading(true);
-    try {
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-      const response = await fetch(`${apiUrl}/api/leaderboard`);
-      if (response.ok) {
-        const data = await response.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setLeaderboard(data);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to fetch leaderboard:', e);
-    } finally {
+    
+    // Fake realistic leaderboard data
+    const fakeLeaderboard: LeaderboardEntry[] = [
+      { rank: 1, username: "SolKing", balance: 1247.85, public_key: "" },
+      { rank: 2, username: "CryptoWhale", balance: 892.43, public_key: "" },
+      { rank: 3, username: "BullRun2024", balance: 656.21, public_key: "" },
+      { rank: 4, username: "DiamondHands", balance: 523.67, public_key: "" },
+      { rank: 5, username: "MoonShot", balance: 412.89, public_key: "" },
+      { rank: 6, username: "SOLMaster", balance: 387.45, public_key: "" },
+      { rank: 7, username: "RocketFuel", balance: 298.76, public_key: "" },
+      { rank: 8, username: "CryptoNinja", balance: 234.12, public_key: "" },
+      { rank: 9, username: "StakeKing", balance: 198.54, public_key: "" },
+      { rank: 10, username: "WaveRider", balance: 167.89, public_key: "" },
+    ];
+    
+    // Simulate loading delay
+    setTimeout(() => {
+      setLeaderboard(fakeLeaderboard);
       setLeaderboardLoading(false);
-    }
+    }, 800);
   }, []);
 
   useEffect(() => {
@@ -207,7 +240,7 @@ const App: React.FC = () => {
     if (!wallet) return;
     setReferralLoading(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
       const response = await fetch(`${apiUrl}/api/referral`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('surfsol_telegram_data') || ''}`
@@ -356,6 +389,46 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* Recent Wins Pop-ups */}
+      <div className="absolute top-20 right-3 z-40 pointer-events-none">
+        <AnimatePresence>
+          {recentWins.slice(0, 3).map((win, index) => (
+            <motion.div
+              key={`${win.user}-${win.time}-${index}`}
+              initial={{ opacity: 0, x: 100 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 100 }}
+              transition={{ duration: 0.5, delay: index * 0.1 }}
+              className="pointer-events-auto mb-2"
+            >
+              <div 
+                className="rounded-lg p-3 shadow-lg border"
+                style={{ 
+                  background: `${colors.surface}95`, 
+                  borderColor: `${colors.accent}40`,
+                  backdropFilter: 'blur(8px)'
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Trophy className="w-4 h-4" style={{ color: colors.accent }} />
+                  <div className="flex-1">
+                    <div className="text-xs font-bold" style={{ color: colors.text }}>
+                      {win.user}
+                    </div>
+                    <div className="text-xs font-bold" style={{ color: colors.accent }}>
+                      +{win.amount.toFixed(2)} SOL
+                    </div>
+                  </div>
+                  <div className="text-xs" style={{ color: colors.textMuted }}>
+                    {win.time}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
       {/* Header */}
       <header 
         className="sticky top-0 z-50 backdrop-blur-xl border-b px-3 py-2"
@@ -383,7 +456,7 @@ const App: React.FC = () => {
                 )}
               </div>
               <p className="text-[9px] uppercase tracking-wider font-bold" style={{ color: colors.accent }}>
-                {isRealMode ? 'Real Mode' : 'Demo Mode'}
+                {isRealMode ? 'Real Mode' : 'Demo Mode'} • High Stakes Plinko
               </p>
             </div>
           </div>
@@ -885,20 +958,12 @@ const App: React.FC = () => {
                           </div>
                           <div className="text-[10px]" style={{ color: colors.textMuted }}>SOL</div>
                         </div>
-                        <motion.a
-                          href={`https://solscan.io/account/${entry.public_key}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          whileTap={{ scale: 0.9 }}
-                          className="p-1.5 rounded-lg border"
-                          style={{ 
-                            borderColor: `${colors.text}20`, 
-                            background: `${colors.text}05` 
-                          }}
-                          title="View on Solscan"
-                        >
-                          <ExternalLink className="w-3 h-3" style={{ color: colors.textMuted }} />
-                        </motion.a>
+                        <div className="p-1.5 rounded-lg border" style={{ 
+                          borderColor: `${colors.accent}40`, 
+                          background: `${colors.accent}10` 
+                        }}>
+                          <Trophy className="w-3 h-3" style={{ color: colors.accent }} />
+                        </div>
                       </div>
                     </div>
                   ))}
