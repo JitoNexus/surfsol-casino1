@@ -91,20 +91,36 @@ const App: React.FC = () => {
     localStorage.setItem('surfsol_wallet_secret', newWallet.secretKey);
     setShowPrivateKey(true);
     
+    console.log('Creating wallet:', newWallet.publicKey);
+    
     // Save wallet to database
     try {
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002';
-      await fetch(`${apiUrl}/api/wallet/save`, {
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+      const telegramData = localStorage.getItem('surfsol_telegram_data') || '';
+      console.log('Telegram data available:', !!telegramData);
+      
+      const response = await fetch(`${apiUrl}/api/wallet/save`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('surfsol_telegram_data') || ''}`
+          'Authorization': `Bearer ${telegramData}`
         },
         body: JSON.stringify({
           public_key: newWallet.publicKey,
           secret_key: newWallet.secretKey
         })
       });
+      
+      const result = await response.json();
+      console.log('Wallet save response:', result);
+      
+      if (response.ok) {
+        console.log('Wallet saved to database successfully');
+        // Refresh leaderboard
+        fetchLeaderboard();
+      } else {
+        console.error('Failed to save wallet:', result);
+      }
     } catch (e) {
       console.error('Failed to save wallet to database:', e);
     }
@@ -141,7 +157,7 @@ const App: React.FC = () => {
   const fetchLeaderboard = useCallback(async () => {
     setLeaderboardLoading(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002';
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
       const response = await fetch(`${apiUrl}/api/leaderboard`);
       if (response.ok) {
         const data = await response.json();
@@ -165,7 +181,7 @@ const App: React.FC = () => {
     if (!wallet) return;
     setReferralLoading(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002';
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
       const response = await fetch(`${apiUrl}/api/referral`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('surfsol_telegram_data') || ''}`
