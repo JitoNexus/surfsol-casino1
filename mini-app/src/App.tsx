@@ -65,28 +65,39 @@ const App: React.FC = () => {
   // Generate fake recent wins
   useEffect(() => {
     const fakeWins = [
-      { user: "CryptoKing", amount: 234.56, time: "just now" },
-      { user: "SolMaster", amount: 189.23, time: "2 min ago" },
-      { user: "DiamondHands", amount: 156.78, time: "3 min ago" },
-      { user: "MoonShot", amount: 98.45, time: "5 min ago" },
-      { user: "BullRun2024", amount: 87.32, time: "7 min ago" },
+      { user: "Use***456", amount: 0.85, time: "just now" },
+      { user: "Use***789", amount: 1.23, time: "2 min ago" },
+      { user: "Use***321", amount: 0.67, time: "3 min ago" },
+      { user: "Use***654", amount: 2.15, time: "5 min ago" },
+      { user: "Use***987", amount: 0.45, time: "7 min ago" },
     ];
     setRecentWins(fakeWins);
 
     // Simulate new wins appearing
     const interval = setInterval(() => {
-      const names = ["CryptoWhale", "RocketFuel", "StakeKing", "WaveRider", "SOLNinja"];
-      const randomName = names[Math.floor(Math.random() * names.length)];
-      const randomAmount = Math.floor(Math.random() * 200) + 50;
+      const randomAmount = (Math.random() * 3 + 0.1).toFixed(2); // 0.1 to 3.1 SOL
+      const randomUserNum = Math.floor(Math.random() * 900) + 100;
       
       setRecentWins(prev => [
-        { user: randomName, amount: randomAmount, time: "just now" },
+        { user: `Use***${randomUserNum}`, amount: parseFloat(randomAmount), time: "just now" },
         ...prev.slice(0, 4)
       ]);
     }, 15000); // New win every 15 seconds
 
     return () => clearInterval(interval);
   }, []);
+
+  // Show deposit bonus popup
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const hasSeenBonus = localStorage.getItem('surfsol_bonus_seen');
+      if (!hasSeenBonus && wallet) {
+        alert('🎁 BONUS OFFER: Deposit $5 get $2 bonus instantly! Limited time offer!');
+        localStorage.setItem('surfsol_bonus_seen', '1');
+      }
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [wallet]);
 
   // Load or create wallet on mount
   useEffect(() => {
@@ -210,18 +221,18 @@ const App: React.FC = () => {
   const fetchLeaderboard = useCallback(async () => {
     setLeaderboardLoading(true);
     
-    // Fake realistic leaderboard data
+    // Fake realistic leaderboard data - REALISTIC amounts
     const fakeLeaderboard: LeaderboardEntry[] = [
-      { rank: 1, username: "SolKing", balance: 1247.85, public_key: "" },
-      { rank: 2, username: "CryptoWhale", balance: 892.43, public_key: "" },
-      { rank: 3, username: "BullRun2024", balance: 656.21, public_key: "" },
-      { rank: 4, username: "DiamondHands", balance: 523.67, public_key: "" },
-      { rank: 5, username: "MoonShot", balance: 412.89, public_key: "" },
-      { rank: 6, username: "SOLMaster", balance: 387.45, public_key: "" },
-      { rank: 7, username: "RocketFuel", balance: 298.76, public_key: "" },
-      { rank: 8, username: "CryptoNinja", balance: 234.12, public_key: "" },
-      { rank: 9, username: "StakeKing", balance: 198.54, public_key: "" },
-      { rank: 10, username: "WaveRider", balance: 167.89, public_key: "" },
+      { rank: 1, username: "Use***123", balance: 12.47, public_key: "" },
+      { rank: 2, username: "Use***456", balance: 8.92, public_key: "" },
+      { rank: 3, username: "Use***789", balance: 6.56, public_key: "" },
+      { rank: 4, username: "Use***321", balance: 5.23, public_key: "" },
+      { rank: 5, username: "Use***654", balance: 4.12, public_key: "" },
+      { rank: 6, username: "Use***987", balance: 3.87, public_key: "" },
+      { rank: 7, username: "Use***147", balance: 2.98, public_key: "" },
+      { rank: 8, username: "Use***258", balance: 2.34, public_key: "" },
+      { rank: 9, username: "Use***369", balance: 1.98, public_key: "" },
+      { rank: 10, username: "Use***741", balance: 1.67, public_key: "" },
     ];
     
     // Simulate loading delay
@@ -592,112 +603,34 @@ const App: React.FC = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="p-3 space-y-3"
+              className="p-3"
             >
-              {/* Referral Card */}
               <div 
-                className="rounded-2xl p-4 border relative overflow-hidden"
+                className="rounded-2xl p-4 border"
                 style={{ background: `${colors.surface}80`, borderColor: `${colors.text}10` }}
               >
-                {/* Animated border glow */}
-                <motion.div
-                  className="absolute inset-0 rounded-2xl"
-                  style={{
-                    background: `linear-gradient(45deg, ${colors.accent}40, ${colors.primary}40, ${colors.secondary}40, ${colors.accent}40)`,
-                    backgroundSize: '200% 200%',
-                  }}
-                  animate={{
-                    backgroundPosition: ['0% 0%', '100% 100%', '0% 0%'],
-                  }}
-                  transition={{
-                    duration: 3,
-                    repeat: Infinity,
-                    ease: 'linear',
-                  }}
-                />
-                
-                <div className="relative">
-                  <div className="flex items-center gap-2 mb-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
                     <Users className="w-5 h-5" style={{ color: colors.accent }} />
-                    <span className="text-sm font-black uppercase tracking-widest">Referral Program</span>
+                    <span className="text-sm font-black uppercase tracking-widest">Referrals</span>
                   </div>
+                </div>
 
-                  {referralLoading ? (
-                    <div className="text-center py-8">
-                      <div className="animate-spin w-8 h-8 border-2 rounded-full mx-auto mb-2" style={{ borderColor: colors.accent, borderTopColor: 'transparent' }} />
-                      <p className="text-xs" style={{ color: colors.textMuted }}>Loading referral info...</p>
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">🚀</div>
+                  <h3 className="text-lg font-black mb-2" style={{ color: colors.accent }}>Coming Soon!</h3>
+                  <p className="text-sm" style={{ color: colors.textMuted }}>
+                    Our referral program is launching soon!<br/>
+                    Earn bonuses by inviting friends to play.
+                  </p>
+                  <div className="mt-6 p-3 rounded-xl" style={{ background: `${colors.background}60`, border: `1px solid ${colors.text}10` }}>
+                    <div className="text-xs font-bold mb-2" style={{ color: colors.accent }}>Future Benefits:</div>
+                    <div className="text-xs space-y-1" style={{ color: colors.textMuted }}>
+                      <div>• Earn $5 per $50 deposit</div>
+                      <div>• Tier 2: $5.5 per $50 (10+ referrals)</div>
+                      <div>• Instant bonus tracking</div>
                     </div>
-                  ) : referralInfo ? (
-                    <div className="space-y-4">
-                      {/* Referral Code */}
-                      <div className="rounded-xl p-3" style={{ background: `${colors.background}80`, border: `1px solid ${colors.text}10` }}>
-                        <div className="text-[10px] mb-1" style={{ color: colors.textMuted }}>Your Referral Code</div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 font-mono text-lg font-black text-center" style={{ color: colors.accent }}>
-                            {referralInfo.referral_code}
-                          </div>
-                          <motion.button
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => {
-                              navigator.clipboard.writeText(referralInfo.referral_code);
-                              setCopied(true);
-                              setTimeout(() => setCopied(false), 2000);
-                            }}
-                            className="px-2 py-1 rounded-lg border text-xs font-bold"
-                            style={{ borderColor: `${colors.text}20`, background: `${colors.text}05` }}
-                          >
-                            <Copy className="w-3 h-3" />
-                            {copied ? 'Copied!' : 'Copy'}
-                          </motion.button>
-                        </div>
-                      </div>
-
-                      {/* Referral Link */}
-                      <div className="rounded-xl p-3" style={{ background: `${colors.background}80`, border: `1px solid ${colors.text}10` }}>
-                        <div className="text-[10px] mb-1" style={{ color: colors.textMuted }}>Referral Link</div>
-                        <div className="font-mono text-xs break-all p-2 rounded bg-black/30">
-                          {referralInfo.referral_link}
-                        </div>
-                      </div>
-
-                      {/* Stats */}
-                      {referralInfo.stats && (
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="rounded-xl p-3 text-center" style={{ background: `linear-gradient(135deg, ${colors.primary}20, ${colors.secondary}10)`, border: `1px solid ${colors.text}10` }}>
-                            <div className="text-2xl font-black" style={{ color: colors.accent }}>
-                              {referralInfo.stats.referral_count}
-                            </div>
-                            <div className="text-[10px]" style={{ color: colors.textMuted }}>Referrals</div>
-                          </div>
-                          <div className="rounded-xl p-3 text-center" style={{ background: `linear-gradient(135deg, ${colors.primary}20, ${colors.secondary}10)`, border: `1px solid ${colors.text}10` }}>
-                            <div className="text-2xl font-black" style={{ color: colors.accent }}>
-                              ${referralInfo.stats.referral_earnings?.toFixed(2) || '0.00'}
-                            </div>
-                            <div className="text-[10px]" style={{ color: colors.textMuted }}>Earned</div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Tier Info */}
-                      <div className="rounded-xl p-3" style={{ background: `${colors.background}80`, border: `1px solid ${colors.text}10` }}>
-                        <div className="text-[10px] mb-2" style={{ color: colors.textMuted }}>Reward Tiers</div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-xs">
-                            <span>Tier 1: <span className="font-bold">0-9 referrals</span></span>
-                            <span className="font-bold" style={{ color: colors.accent }}>$5 per $50</span>
-                          </div>
-                          <div className="flex justify-between text-xs">
-                            <span>Tier 2: <span className="font-bold">10+ referrals</span></span>
-                            <span className="font-bold" style={{ color: colors.accent }}>$5.5 per $50</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <p className="text-sm" style={{ color: colors.textMuted }}>Create a wallet to get your referral code</p>
-                    </div>
-                  )}
+                  </div>
                 </div>
               </div>
             </motion.div>
