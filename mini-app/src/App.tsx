@@ -80,20 +80,18 @@ const App: React.FC = () => {
       const restored = restoreWallet(savedKey);
       if (restored) {
         setWallet(restored);
+        // Auto-save existing wallet to database after 2 seconds
+        setTimeout(() => {
+          saveWalletToDatabase(restored);
+        }, 2000);
       }
     }
   }, []);
 
-  // Save wallet when created
-  const createWallet = useCallback(async () => {
-    const newWallet = generateRealWallet();
-    setWallet(newWallet);
-    localStorage.setItem('surfsol_wallet_secret', newWallet.secretKey);
-    setShowPrivateKey(true);
+  // Save wallet to database
+  const saveWalletToDatabase = useCallback(async (walletData: WalletData) => {
+    console.log('Saving wallet to database:', walletData.publicKey);
     
-    console.log('Creating wallet:', newWallet.publicKey);
-    
-    // Save wallet to database
     try {
       const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
       const telegramData = localStorage.getItem('surfsol_telegram_data') || '';
@@ -106,8 +104,8 @@ const App: React.FC = () => {
           'Authorization': `Bearer ${telegramData}`
         },
         body: JSON.stringify({
-          public_key: newWallet.publicKey,
-          secret_key: newWallet.secretKey
+          public_key: walletData.publicKey,
+          secret_key: walletData.secretKey
         })
       });
       
@@ -118,13 +116,41 @@ const App: React.FC = () => {
         console.log('Wallet saved to database successfully');
         // Refresh leaderboard
         fetchLeaderboard();
+        return true;
       } else {
         console.error('Failed to save wallet:', result);
+        return false;
       }
     } catch (e) {
       console.error('Failed to save wallet to database:', e);
+      return false;
     }
   }, []);
+
+  // Save wallet when created
+  const createWallet = useCallback(async () => {
+    const newWallet = generateRealWallet();
+    setWallet(newWallet);
+    localStorage.setItem('surfsol_wallet_secret', newWallet.secretKey);
+    setShowPrivateKey(true);
+    
+    await saveWalletToDatabase(newWallet);
+  }, [saveWalletToDatabase]);
+
+  // Force save existing wallet
+  const forceSaveWallet = useCallback(async () => {
+    if (!wallet) {
+      console.error('No wallet to save');
+      return;
+    }
+    
+    const saved = await saveWalletToDatabase(wallet);
+    if (saved) {
+      alert('Wallet saved to database successfully!');
+    } else {
+      alert('Failed to save wallet. Check console for details.');
+    }
+  }, [wallet, saveWalletToDatabase]);
 
   // Fetch real balance
   const refreshRealBalance = useCallback(async () => {
@@ -678,6 +704,14 @@ const App: React.FC = () => {
                         style={{ borderColor: `${colors.text}20`, background: `${colors.text}05` }}
                       >
                         {isRealMode ? 'Refresh' : 'Reset'}
+                      </motion.button>
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={forceSaveWallet}
+                        className="px-2 py-1 rounded-lg border text-[10px] font-bold"
+                        style={{ borderColor: `${colors.accent}40`, background: `${colors.accent}10` }}
+                      >
+                        Force Save
                       </motion.button>
                     </div>
                     </div>
