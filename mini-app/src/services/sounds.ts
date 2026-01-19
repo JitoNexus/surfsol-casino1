@@ -41,6 +41,7 @@ let currentBgMusic: Howl | null = null;
 let currentTheme: string = '';
 
 let audioUnlocked = false;
+let sfxEnabled = true;
 
 export const unlockAudio = async (): Promise<boolean> => {
   try {
@@ -57,7 +58,12 @@ export const unlockAudio = async (): Promise<boolean> => {
   }
 };
 
+export const setSfxEnabled = (enabled: boolean) => {
+  sfxEnabled = enabled;
+};
+
 export const playSound = (name: keyof typeof sounds) => {
+  if (!sfxEnabled) return;
   try {
     sounds[name].play();
   } catch (e) {
@@ -66,12 +72,14 @@ export const playSound = (name: keyof typeof sounds) => {
 };
 
 export const playPegHit = () => {
+  if (!sfxEnabled) return;
   // Randomize pitch slightly for variety
   sounds.peg.rate(1.3 + Math.random() * 0.4);
   sounds.peg.play();
 };
 
 export const playResult = (multiplier: number) => {
+  if (!sfxEnabled) return;
   if (multiplier >= 10) {
     sounds.bigWin.play();
   } else if (multiplier >= 1) {

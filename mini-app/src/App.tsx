@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useTheme, ThemeName, themes } from './context/ThemeContext';
-import { Wallet, Copy, QrCode, Settings, Volume2, VolumeX, Palette, RotateCcw, Trophy, ExternalLink, Send } from 'lucide-react';
+import { Wallet, Copy, QrCode, Settings, Volume2, VolumeX, Palette, RotateCcw, Trophy, ExternalLink, Send, Sparkles, Flame, Star, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeCanvas } from 'qrcode.react';
 import AdvancedPlinko from './games/AdvancedPlinko';
 import { generateRealWallet, restoreWallet, getWalletBalance, isValidSolanaAddress, sendSOL, HOUSE_WALLET } from './services/solanaWallet';
-import { startThemeMusic, stopThemeMusic, unlockAudio } from './services/sounds';
+import { startThemeMusic, stopThemeMusic, unlockAudio, setSfxEnabled } from './services/sounds';
 
 interface WalletData {
   publicKey: string;
@@ -16,10 +16,23 @@ interface LeaderboardEntry {
   rank: number;
   username: string;
   balance: number;
+  public_key: string;
 }
 
 const App: React.FC = () => {
   const { theme, colors, setTheme } = useTheme();
+
+  // Dynamic background particles
+  const particles = useMemo(() => {
+    return Array.from({ length: 20 }).map((_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: Math.random() * 3 + 1,
+      duration: Math.random() * 20 + 10,
+      delay: Math.random() * 5,
+    }));
+  }, []);
 
   const [activeTab, setActiveTab] = useState<'plinko' | 'wallet' | 'leaderboard' | 'settings'>('plinko');
   const [wallet, setWallet] = useState<WalletData | null>(null);
@@ -41,6 +54,9 @@ const App: React.FC = () => {
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState('');
   const [musicEnabled, setMusicEnabled] = useState(() => localStorage.getItem('surfsol_music') === '1');
+  const [sfxEnabled, setSfxEnabledState] = useState(() => localStorage.getItem('surfsol_sfx') !== '0');
+  const [showParticles, setShowParticles] = useState(true);
+  const [lastWin, setLastWin] = useState<number | null>(null);
 
   // Load or create wallet on mount
   useEffect(() => {
@@ -121,6 +137,12 @@ const App: React.FC = () => {
     }
   }, [musicEnabled, theme]);
 
+  // SFX toggle
+  useEffect(() => {
+    localStorage.setItem('surfsol_sfx', sfxEnabled ? '1' : '0');
+    setSfxEnabled(sfxEnabled);
+  }, [sfxEnabled]);
+
   const handleWithdraw = async () => {
     if (!wallet?.secretKey || !withdrawAddress || !withdrawAmount) return;
     
@@ -194,6 +216,36 @@ const App: React.FC = () => {
         }}
       />
 
+      {/* Dynamic particles */}
+      {showParticles && (
+        <div className="absolute inset-0 pointer-events-none">
+          {particles.map((particle) => (
+            <motion.div
+              key={particle.id}
+              className="absolute rounded-full"
+              style={{
+                background: colors.accent,
+                left: `${particle.x}%`,
+                top: `${particle.y}%`,
+                width: `${particle.size}px`,
+                height: `${particle.size}px`,
+              }}
+              animate={{
+                y: [0, -100, 0],
+                opacity: [0, 1, 0],
+                scale: [1, 1.5, 1],
+              }}
+              transition={{
+                duration: particle.duration,
+                delay: particle.delay,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Header */}
       <header 
         className="sticky top-0 z-50 backdrop-blur-xl border-b px-3 py-2"
@@ -208,7 +260,18 @@ const App: React.FC = () => {
               <span className="text-base">🌊</span>
             </div>
             <div>
-              <h1 className="text-sm font-black tracking-tight leading-none">SURFSOL</h1>
+              <div className="flex items-center gap-1">
+                <h1 className="text-sm font-black tracking-tight leading-none">SURFSOL</h1>
+                {lastWin && lastWin > 0 && (
+                  <motion.div
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    className="text-yellow-400"
+                  >
+                    <Star className="w-4 h-4 fill-current" />
+                  </motion.div>
+                )}
+              </div>
               <p className="text-[9px] uppercase tracking-wider font-bold" style={{ color: colors.accent }}>
                 {isRealMode ? 'Real Mode' : 'Demo Mode'}
               </p>
@@ -246,6 +309,38 @@ const App: React.FC = () => {
                 <Volume2 className="w-4 h-4" style={{ color: colors.accent }} />
               ) : (
                 <VolumeX className="w-4 h-4" style={{ color: colors.textMuted }} />
+              )}
+            </motion.button>
+            {/* SFX Toggle */}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setSfxEnabledState(!sfxEnabled)}
+              className="p-1.5 rounded-lg border"
+              style={{ 
+                borderColor: sfxEnabled ? colors.accent : `${colors.text}20`, 
+                background: sfxEnabled ? `${colors.accent}20` : `${colors.text}05` 
+              }}
+            >
+              {sfxEnabled ? (
+                <Zap className="w-4 h-4" style={{ color: colors.accent }} />
+              ) : (
+                <Zap className="w-4 h-4" style={{ color: colors.textMuted, opacity: 0.5 }} />
+              )}
+            </motion.button>
+            {/* Particles Toggle */}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowParticles(!showParticles)}
+              className="p-1.5 rounded-lg border"
+              style={{ 
+                borderColor: showParticles ? colors.accent : `${colors.text}20`, 
+                background: showParticles ? `${colors.accent}20` : `${colors.text}05` 
+              }}
+            >
+              {showParticles ? (
+                <Sparkles className="w-4 h-4" style={{ color: colors.accent }} />
+              ) : (
+                <Sparkles className="w-4 h-4" style={{ color: colors.textMuted, opacity: 0.5 }} />
               )}
             </motion.button>
             <motion.button
@@ -538,11 +633,27 @@ const App: React.FC = () => {
                       <div className="flex-1">
                         <div className="font-bold text-sm">{entry.username}</div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-black text-sm" style={{ color: colors.accent }}>
-                          {entry.balance.toFixed(2)}
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          <div className="font-black text-sm" style={{ color: colors.accent }}>
+                            {entry.balance.toFixed(2)}
+                          </div>
+                          <div className="text-[10px]" style={{ color: colors.textMuted }}>SOL</div>
                         </div>
-                        <div className="text-[10px]" style={{ color: colors.textMuted }}>SOL</div>
+                        <motion.a
+                          href={`https://solscan.io/account/${entry.public_key}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          whileTap={{ scale: 0.9 }}
+                          className="p-1.5 rounded-lg border"
+                          style={{ 
+                            borderColor: `${colors.text}20`, 
+                            background: `${colors.text}05` 
+                          }}
+                          title="View on Solscan"
+                        >
+                          <ExternalLink className="w-3 h-3" style={{ color: colors.textMuted }} />
+                        </motion.a>
                       </div>
                     </div>
                   ))}

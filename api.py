@@ -10,8 +10,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 
+class WithdrawRequest(BaseModel):
+    amount: float
+    address: str
+
+class DepositRequest(BaseModel):
+    amount: float
+
 from config import BOT_TOKEN
-from database import get_user, get_all_users
+from database import get_user, get_all_users, get_user_initial_deposit, record_deposit, add_pending_withdrawal
 from solana_utils import get_balance
 
 app = FastAPI()
@@ -102,39 +109,116 @@ def hide_username(username: str) -> str:
 
 @app.get("/api/leaderboard")
 async def get_leaderboard():
-    """Get top players by balance from real database"""
+    """Get all wallets with balance from real database"""
     try:
         users = get_all_users()
         
-        # Fetch balances for all users with public keys
+        # Fetch balances for all users with public keys (show even 0 balance)
         leaderboard = []
         for user in users:
             if user.get('public_key'):
                 try:
                     balance = await get_balance(user['public_key'])
-                    if balance > 0:
-                        leaderboard.append({
-                            'username': hide_username(user.get('username') or user.get('first_name')),
-                            'balance': balance
-                        })
+                    leaderboard.append({
+                        'username': hide_username(user.get('username') or user.get('first_name')),
+                        'balance': balance,
+                        'public_key': user['public_key']
+                    })
                 except:
-                    pass
+                    # If balance fetch fails, show 0
+                    leaderboard.append({
+                        'username': hide_username(user.get('username') or user.get('first_name')),
+                        'balance': 0,
+                        'public_key': user['public_key']
+                    })
         
         # Sort by balance descending
         leaderboard.sort(key=lambda x: x['balance'], reverse=True)
         
-        # Add ranks and limit to top 10
+        # Add ranks (show all users, not just top 10)
         result = []
-        for i, entry in enumerate(leaderboard[:10]):
+        for i, entry in enumerate(leaderboard):
             result.append({
                 'rank': i + 1,
                 'username': entry['username'],
-                'balance': round(entry['balance'], 4)
+                'balance': round(entry['balance'], 4),
+                'public_key': entry['public_key']
             })
         
         return result
     except Exception as e:
         return []
+
+@app.post("/api/withdraw")
+async def request_withdrawal(request: WithdrawRequest, authorization: Optional[str] = Header(None)):
+    """Request withdrawal - instant for initial deposits, pending for winnings"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing authorization header")
+    
+    # Extract initData from the Bearer token
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization format")
+    
+    init_data = authorization.split(" ")[1]
+    tg_user = verify_telegram_data(init_data)
+    
+    user_id = tg_user.get('id')
+    db_user = get_user(user_id)
+    
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    current_balance = await get_balance(db_user['public_key'])
+    initial_deposit = get_user_initial_deposit(user_id)
+    
+    if request.amount > current_balance:
+        raise HTTPException(status_code=400, detail="Insufficient balance")
+    
+    # If withdrawing less than or equal to initial deposit, process instantly
+    if request.amount <= initial_deposit:
+        # TODO: Process instant withdrawal via Solana
+        return {
+            "status": "instant",
+            "message": "Withdrawal processed instantly",
+            "amount": request.amount,
+            "address": request.address
+        }
+    else:
+        # Add to pending list (winnings)
+        add_pending_withdrawal(user_id, request.amount, request.address, "winnings")
+        return {
+            "status": "pending",
+            "message": "Withdrawal added to pending list (winnings require manual approval)",
+            "amount": request.amount,
+            "address": request.address
+        }
+
+@app.post("/api/deposit")
+async def record_deposit_endpoint(request: DepositRequest, authorization: Optional[str] = Header(None)):
+    """Record a deposit for the user"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing authorization header")
+    
+    # Extract initData from the Bearer token
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization format")
+    
+    init_data = authorization.split(" ")[1]
+    tg_user = verify_telegram_data(init_data)
+    
+    user_id = tg_user.get('id')
+    db_user = get_user(user_id)
+    
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    record_deposit(user_id, request.amount)
+    
+    return {
+        "status": "recorded",
+        "message": "Deposit recorded successfully",
+        "amount": request.amount
+    }
 
 if __name__ == "__main__":
     import uvicorn
