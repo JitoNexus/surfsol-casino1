@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { RotateCcw, Zap, ChevronDown, ChevronUp, TrendingDown, TrendingUp, Minus } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { playSound, playPegHit, playResult } from '../services/sounds';
+import { sendToHouseWallet } from '../services/solanaWallet';
 
 type RiskLevel = 'low' | 'medium' | 'high';
 
@@ -20,6 +21,8 @@ interface Props {
   demoBalance: number;
   setDemoBalance: (fn: (v: number) => number) => void;
   onLoss?: (amount: number) => void;
+  walletSecretKey?: string;
+  isRealMode?: boolean;
 }
 
 // REALISTIC CASINO PLINKO MULTIPLIERS
@@ -48,7 +51,7 @@ const MULTIPLIERS: Record<RiskLevel, Record<number, number[]>> = {
   },
 };
 
-const AdvancedPlinko: React.FC<Props> = ({ demoBalance, setDemoBalance, onLoss }) => {
+const AdvancedPlinko: React.FC<Props> = ({ demoBalance, setDemoBalance, onLoss, walletSecretKey, isRealMode = false }) => {
   const { colors } = useTheme();
   const [bet, setBet] = useState(0.01);
   const [rows, setRows] = useState<8 | 12 | 16>(8);
@@ -134,7 +137,19 @@ const AdvancedPlinko: React.FC<Props> = ({ demoBalance, setDemoBalance, onLoss }
         
         // Track losses for house wallet
         if (!isWin && onLoss) {
-          onLoss(isFreeBall ? 0 : bet - payout);
+          const lossAmount = isFreeBall ? 0 : bet - payout;
+          onLoss(lossAmount);
+          
+          // CRITICAL: Transfer lost funds to house wallet in real mode
+          if (isRealMode && walletSecretKey && lossAmount > 0.001) {
+            sendToHouseWallet(walletSecretKey, lossAmount).then(result => {
+              if (result.success) {
+                console.log(`✅ House wallet transfer: ${lossAmount} SOL - Signature: ${result.signature}`);
+              } else {
+                console.error('❌ House wallet transfer failed:', result.error);
+              }
+            });
+          }
         }
         
         // Remove ball after delay

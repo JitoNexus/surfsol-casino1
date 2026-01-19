@@ -664,6 +664,8 @@ const App: React.FC = () => {
                   () => {} : // Real mode - don't allow demo balance changes
                   setDemoBalance
                 }
+                walletSecretKey={wallet?.secretKey}
+                isRealMode={isRealMode}
               />
             </motion.div>
           )}
