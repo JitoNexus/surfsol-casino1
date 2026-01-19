@@ -61,6 +61,7 @@ const App: React.FC = () => {
   const [referralInfo, setReferralInfo] = useState<any>(null);
   const [referralLoading, setReferralLoading] = useState(false);
   const [recentWins, setRecentWins] = useState<Array<{user: string, amount: number, time: string}>>([]);
+  const [showPopup, setShowPopup] = useState<{type: 'bonus' | 'daily', title: string, message: string, action?: () => void} | null>(null);
 
   // Generate fake recent wins
   useEffect(() => {
@@ -87,13 +88,83 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Daily login bonus system
+  useEffect(() => {
+    if (!wallet) return;
+    
+    const checkDailyBonus = () => {
+      const lastClaim = localStorage.getItem('surfsol_daily_claim');
+      const hasDeposited = localStorage.getItem('surfsol_has_deposited') === 'true';
+      const hasPlayed = parseInt(localStorage.getItem('surfsol_balls_played') || '0') >= 10;
+      
+      if (!hasDeposited || !hasPlayed) return;
+      
+      const today = new Date().toDateString();
+      if (lastClaim === today) return;
+      
+      const dayNumber = parseInt(localStorage.getItem('surfsol_daily_streak') || '0') + 1;
+      
+      let bonusAmount = 0;
+      let bonusMessage = '';
+      
+      if (dayNumber === 1) {
+        bonusAmount = 2;
+        bonusMessage = `Day ${dayNumber}: 1 FREE $2 Plinko ball! (Guaranteed 0.3x multiplier)`;
+      } else if (dayNumber === 2) {
+        bonusAmount = 0.5;
+        bonusMessage = `Day ${dayNumber}: $0.5 bonus credit!`;
+      } else if (dayNumber === 3) {
+        bonusAmount = 0.75;
+        bonusMessage = `Day ${dayNumber}: $0.75 bonus credit!`;
+      } else if (dayNumber === 4) {
+        bonusAmount = 1;
+        bonusMessage = `Day ${dayNumber}: $1 bonus credit!`;
+      } else if (dayNumber === 5) {
+        bonusAmount = 1.25;
+        bonusMessage = `Day ${dayNumber}: $1.25 bonus credit!`;
+      } else if (dayNumber === 6) {
+        bonusAmount = 1.5;
+        bonusMessage = `Day ${dayNumber}: $1.5 bonus credit!`;
+      } else if (dayNumber >= 7) {
+        bonusAmount = 2;
+        bonusMessage = `Day ${dayNumber}: $2 bonus credit! (Max daily reward)`;
+      }
+      
+      if (bonusAmount > 0) {
+        setShowPopup({
+          type: 'daily',
+          title: '🎁 DAILY BONUS',
+          message: bonusMessage,
+          action: () => {
+            localStorage.setItem('surfsol_daily_claim', today);
+            localStorage.setItem('surfsol_daily_streak', dayNumber.toString());
+            if (dayNumber === 1) {
+              localStorage.setItem('surfsol_free_ball', 'true');
+            }
+            if (isRealMode) {
+              // Add bonus to real balance
+            } else {
+              setDemoBalance(prev => prev + bonusAmount);
+            }
+          }
+        });
+      }
+    };
+    
+    checkDailyBonus();
+  }, [wallet, isRealMode, setDemoBalance]);
+
   // Show deposit bonus popup
   useEffect(() => {
     const timer = setTimeout(() => {
       const hasSeenBonus = localStorage.getItem('surfsol_bonus_seen');
       if (!hasSeenBonus && wallet) {
-        alert('🎁 BONUS OFFER: Deposit $5 get $2 bonus instantly! Limited time offer!');
-        localStorage.setItem('surfsol_bonus_seen', '1');
+        setShowPopup({
+          type: 'bonus',
+          title: '🎁 BONUS OFFER',
+          message: 'Deposit $5 get $2 bonus instantly! Limited time offer!',
+          action: () => localStorage.setItem('surfsol_bonus_seen', '1')
+        });
       }
     }, 5000);
     return () => clearTimeout(timer);
@@ -1008,6 +1079,62 @@ const App: React.FC = () => {
           </motion.button>
         ))}
       </nav>
+
+      {/* In-App Pop-up */}
+      <AnimatePresence>
+        {showPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(0, 0, 0, 0.8)' }}
+            onClick={() => setShowPopup(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              className="rounded-2xl p-6 max-w-sm w-full"
+              style={{ background: colors.surface, border: `2px solid ${colors.accent}` }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center">
+                <div className="text-4xl mb-4">
+                  {showPopup.type === 'bonus' ? '🎁' : '🎯'}
+                </div>
+                <h3 className="text-lg font-black mb-2" style={{ color: colors.accent }}>
+                  {showPopup.title}
+                </h3>
+                <p className="text-sm mb-6" style={{ color: colors.text }}>
+                  {showPopup.message}
+                </p>
+                <div className="flex gap-3">
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      if (showPopup.action) showPopup.action();
+                      setShowPopup(null);
+                    }}
+                    className="flex-1 px-4 py-2 rounded-lg font-bold"
+                    style={{ background: `linear-gradient(135deg, ${colors.primary}, ${colors.secondary})` }}
+                  >
+                    Claim
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowPopup(null)}
+                    className="flex-1 px-4 py-2 rounded-lg font-bold"
+                    style={{ background: `${colors.text}20`, color: colors.text }}
+                  >
+                    Later
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

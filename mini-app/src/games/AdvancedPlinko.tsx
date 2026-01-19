@@ -83,17 +83,24 @@ const AdvancedPlinko: React.FC<Props> = ({ demoBalance, setDemoBalance, onLoss }
     return path;
   }, []);
 
-  const dropBall = useCallback(() => {
-    const id = ++ballIdRef.current;
-    const path = simulateBallPath(rows);
-    const finalSlot = path[path.length - 1]; // 0 to rows (rows+1 slots)
-    const mult = multipliers[finalSlot] ?? 0.1;
-
+  const dropBall = useCallback((isFreeBall = false) => {
+    const id = Date.now() + Math.random();
+    let mult: number;
+    
+    if (isFreeBall) {
+      // Free ball always hits 0.3x multiplier
+      mult = 0.3;
+    } else {
+      const path = simulateBallPath(rows);
+      const finalSlot = path[path.length - 1]; // 0 to rows (rows+1 slots)
+      mult = multipliers[finalSlot] ?? 0.1;
+    }
+    
     const ball: Ball = {
       id,
-      x: 0,
+      x: 50,
       y: 0,
-      path,
+      path: isFreeBall ? [Math.floor(multipliers.indexOf(0.3))] : simulateBallPath(rows),
       step: 0,
       done: false,
       multiplier: mult,
@@ -105,25 +112,29 @@ const AdvancedPlinko: React.FC<Props> = ({ demoBalance, setDemoBalance, onLoss }
     let step = 0;
     const interval = setInterval(() => {
       step++;
-      if (step >= path.length) {
+      if (step >= rows) {
         clearInterval(interval);
         setBalls((prev) =>
-          prev.map((b) => (b.id === id ? { ...b, done: true, step: path.length - 1 } : b))
+          prev.map((b) => (b.id === id ? { ...b, done: true, step: rows - 1 } : b))
         );
         
-        const payout = bet * mult;
+        const payout = isFreeBall ? 2 * 0.3 : bet * mult; // Free ball is $2 at 0.3x
         const isWin = mult >= 1;
         
         setDemoBalance((v) => v + payout);
         setLastResult({ amount: payout, multiplier: mult, isWin });
         setHistory((prev) => [{ mult, isWin }, ...prev].slice(0, 20));
         
+        // Track balls played for daily bonus eligibility
+        const ballsPlayed = parseInt(localStorage.getItem('surfsol_balls_played') || '0') + 1;
+        localStorage.setItem('surfsol_balls_played', ballsPlayed.toString());
+        
         // Play result sound
         playResult(mult);
         
         // Track losses for house wallet
         if (!isWin && onLoss) {
-          onLoss(bet - payout);
+          onLoss(isFreeBall ? 0 : bet - payout);
         }
         
         // Remove ball after delay
@@ -475,6 +486,27 @@ const AdvancedPlinko: React.FC<Props> = ({ demoBalance, setDemoBalance, onLoss }
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Free Ball Button */}
+        {localStorage.getItem('surfsol_free_ball') === 'true' && (
+          <motion.button
+            onClick={() => {
+              dropBall(true);
+              localStorage.removeItem('surfsol_free_ball');
+            }}
+            disabled={isDropping}
+            whileTap={!isDropping ? { scale: 0.97 } : {}}
+            className="w-full py-3 rounded-xl font-black uppercase tracking-wider text-base flex items-center justify-center gap-2 mb-2 transition-all"
+            style={{
+              background: `linear-gradient(135deg, #22c55e, #16a34a)`,
+              boxShadow: `0 4px 20px rgba(34, 197, 94, 0.4)`,
+              color: '#fff',
+            }}
+          >
+            <Zap className="w-5 h-5" />
+            {isDropping ? 'Dropping...' : 'Drop FREE Ball ($2 at 0.3x)'}
+          </motion.button>
+        )}
 
         {/* Drop Button */}
         <motion.button
