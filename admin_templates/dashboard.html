@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SurfSol Admin Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #0a0a0f; color: white; margin: 0; padding: 20px; }
+        h1 { color: #64ffda; text-align: center; }
+        .message { background: #4caf50; color: white; padding: 10px; text-align: center; margin-bottom: 20px; border-radius: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #333; }
+        th { background: #1a1a2e; color: #64ffda; }
+        tr:hover { background: #1a1a2e; }
+        .actions { display: flex; gap: 10px; }
+        button { padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .approve { background: #4caf50; color: white; }
+        .approve:hover { background: #45a049; }
+        .reject { background: #f44336; color: white; }
+        .reject:hover { background: #da190b; }
+        .empty { text-align: center; padding: 40px; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>SurfSol Admin Dashboard</h1>
+    
+    {% if message %}
+    <div class="message">{{ message }}</div>
+    {% endif %}
+    
+    <h2>Pending Withdrawals</h2>
+    
+    {% if pending_withdrawals %}
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>User ID</th>
+                <th>Amount (SOL)</th>
+                <th>Address</th>
+                <th>Reason</th>
+                <th>Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for w in pending_withdrawals %}
+            <tr>
+                <td>{{ w.id }}</td>
+                <td>{{ w.user_id }}</td>
+                <td>{{ "%.4f"|format(w.amount) }}</td>
+                <td style="font-family: monospace; font-size: 12px;">{{ w.address[:8] }}...{{ w.address[-8:] }}</td>
+                <td>{{ w.reason }}</td>
+                <td>{{ w.created_at }}</td>
+                <td>
+                    <div class="actions">
+                        <form method="post" action="/approve/{{ w.id }}" style="display: inline;">
+                            <button type="submit" class="approve">Approve</button>
+                        </form>
+                        <form method="post" action="/reject/{{ w.id }}" style="display: inline;">
+                            <button type="submit" class="reject">Reject</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty">No pending withdrawals</div>
+    {% endif %}
+</body>
+</html>

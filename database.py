@@ -6,7 +6,8 @@ DB_NAME = "zolt.db"
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    # Create table if not exists
+    
+    # Create all tables
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -14,6 +15,56 @@ def init_db():
             encrypted_private_key TEXT,
             language TEXT DEFAULT 'en',
             is_verified INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Create deposits table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS deposits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            amount REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Create pending_withdrawals table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS pending_withdrawals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            amount REAL,
+            address TEXT,
+            reason TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            processed_at TIMESTAMP NULL
+        )
+    ''')
+    
+    # Create user_bonuses table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_bonuses (
+            user_id INTEGER PRIMARY KEY,
+            bonus_balance REAL DEFAULT 0,
+            total_rolled REAL DEFAULT 0,
+            required_rollover REAL DEFAULT 0,
+            is_converted INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Create referrals table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS referrals (
+            user_id INTEGER PRIMARY KEY,
+            referral_code TEXT UNIQUE,
+            referred_by INTEGER NULL,
+            total_deposits REAL DEFAULT 0,
+            referral_earnings REAL DEFAULT 0,
+            referral_count INTEGER DEFAULT 0,
+            tier_level INTEGER DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')

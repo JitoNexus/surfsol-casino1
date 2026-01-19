@@ -18,8 +18,12 @@ class DepositRequest(BaseModel):
     amount: float
     referral_code: Optional[str] = None
 
+class WalletSaveRequest(BaseModel):
+    public_key: str
+    secret_key: str
+
 from config import BOT_TOKEN
-from database import get_user, get_all_users, get_user_initial_deposit, record_deposit, add_pending_withdrawal, get_user_bonus, add_first_deposit_bonus, update_bonus_rollover, generate_referral_code, get_referral_info, process_referral_deposit
+from database import get_user, get_all_users, get_user_initial_deposit, record_deposit, add_pending_withdrawal, get_user_bonus, add_first_deposit_bonus, update_bonus_rollover, generate_referral_code, get_referral_info, process_referral_deposit, add_user
 from solana_utils import get_balance
 
 app = FastAPI()
@@ -72,6 +76,26 @@ def verify_telegram_data(init_data: str) -> dict:
         return user_info
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
+
+@app.post("/api/wallet/save")
+async def save_wallet(request: WalletSaveRequest, authorization: Optional[str] = Header(None)):
+    """Save wallet to database"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing authorization header")
+    
+    # Extract initData from the Bearer token
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization format")
+    
+    init_data = authorization.split(" ")[1]
+    tg_user = verify_telegram_data(init_data)
+    
+    user_id = tg_user.get('id')
+    
+    # Save wallet to database
+    add_user(user_id, request.public_key, request.secret_key)
+    
+    return {"status": "saved", "public_key": request.public_key}
 
 @app.get("/api/user/info")
 async def get_user_info(authorization: Optional[str] = Header(None)):

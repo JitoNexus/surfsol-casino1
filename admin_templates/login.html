@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SurfSol Admin Login</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #0a0a0f; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-box { background: #1a1a2e; padding: 2rem; border-radius: 10px; border: 1px solid #333; width: 300px; }
+        h2 { text-align: center; color: #64ffda; }
+        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #333; background: #0a0a0f; color: white; border-radius: 5px; }
+        button { width: 100%; padding: 10px; background: #64ffda; color: #0a0a0f; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #4fb3a9; }
+        .error { color: #ff4444; text-align: center; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <h2>Admin Login</h2>
+        <form method="post" action="/login">
+            <input type="password" name="password" placeholder="Enter admin password" required>
+            <button type="submit">Login</button>
+        </form>
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+    </div>
+</body>
+</html>

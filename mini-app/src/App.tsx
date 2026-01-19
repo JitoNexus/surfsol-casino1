@@ -73,11 +73,29 @@ const App: React.FC = () => {
   }, []);
 
   // Save wallet when created
-  const createWallet = useCallback(() => {
+  const createWallet = useCallback(async () => {
     const newWallet = generateRealWallet();
     setWallet(newWallet);
     localStorage.setItem('surfsol_wallet_secret', newWallet.secretKey);
     setShowPrivateKey(true);
+    
+    // Save wallet to database
+    try {
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+      await fetch(`${apiUrl}/api/wallet/save`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('surfsol_telegram_data') || ''}`
+        },
+        body: JSON.stringify({
+          public_key: newWallet.publicKey,
+          secret_key: newWallet.secretKey
+        })
+      });
+    } catch (e) {
+      console.error('Failed to save wallet to database:', e);
+    }
   }, []);
 
   // Fetch real balance
